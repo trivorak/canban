@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Kanban Board & Todo List</title>
+    <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+    <div class="app">
+        <header>
+            <h1>
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="18" rx="1"/><rect x="13" y="3" width="8" height="10" rx="1"/></svg>
+                Kanban &amp; Todo
+            </h1>
+            <div class="header-actions">
+                <button id="themeToggleBtn" class="btn btn-secondary" title="Toggle light/dark mode">
+                    <svg class="icon icon-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+                    <svg class="icon icon-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+                </button>
+                <button id="addBoardBtn" class="btn btn-primary">+ Add Board</button>
+                <button id="exportDataBtn" class="btn btn-secondary">
+                    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    Export
+                </button>
+                <button id="importDataBtn" class="btn btn-secondary">
+                    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    Import
+                </button>
+                <button id="logoutBtn" class="btn btn-secondary" title="Sign out">
+                    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                    Logout
+                </button>
+                <input type="file" id="importFileInput" accept=".json" style="display:none" />
+            </div>
+        </header>
+
+        <!-- Tab Navigation -->
+        <div class="main-tabs">
+            <button class="main-tab active" data-tab="kanban">
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="18" rx="1"/><rect x="13" y="3" width="8" height="10" rx="1"/></svg>
+                Kanban Board
+            </button>
+            <button class="main-tab" data-tab="todo">
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                Todo List
+            </button>
+        </div>
+
+        <!-- Kanban Section -->
+        <div class="tab-content" id="kanbanTab">
+            <div class="board-tabs" id="boardTabs"></div>
+            <div class="board-container" id="boardContainer">
+                <!-- Boards will be rendered here -->
+            </div>
+        </div>
+
+        <!-- Todo Section -->
+        <div class="tab-content" id="todoTab" style="display: none;">
+            <div class="todo-container">
+            <div class="todo-header">
+                    <h2>
+                        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                        Todo List
+                    </h2>
+                    <button id="addTodoBtn" class="btn btn-primary">+ Add Todo</button>
+                </div>
+                <div id="todoList" class="todo-list">
+                    <!-- Todos will be rendered here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Add Column Modal -->
+        <div class="modal" id="addColumnModal">
+            <div class="modal-content">
+                <h2>Add New Column</h2>
+                <input type="text" id="columnTitleInput" placeholder="Column title..." />
+                <div class="modal-actions">
+                    <button id="cancelColumnBtn" class="btn btn-secondary">Cancel</button>
+                    <button id="saveColumnBtn" class="btn btn-primary">Add Column</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Add Card Modal -->
+        <div class="modal" id="addCardModal">
+            <div class="modal-content">
+                <h2>Add New Card</h2>
+                <input type="text" id="cardTitleInput" placeholder="Card title..." />
+                <textarea id="cardDescriptionInput" placeholder="Description..."></textarea>
+                <div class="modal-actions">
+                    <button id="cancelCardBtn" class="btn btn-secondary">Cancel</button>
+                    <button id="saveCardBtn" class="btn btn-primary">Add Card</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Edit Card Modal -->
+        <div class="modal" id="editCardModal">
+            <div class="modal-content">
+                <h2>
+                    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"/></svg>
+                    Edit Card
+                </h2>
+                <input type="text" id="editCardTitleInput" placeholder="Card title..." />
+                <textarea id="editCardDescriptionInput" placeholder="Description..."></textarea>
+                <div class="modal-actions">
+                    <button id="cancelEditCardBtn" class="btn btn-secondary">Cancel</button>
+                    <button id="saveEditCardBtn" class="btn btn-primary">Save Changes</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Add Todo Modal -->
+        <div class="modal" id="addTodoModal">
+            <div class="modal-content">
+                <h2>Add New Todo</h2>
+                <input type="text" id="todoTitleInput" placeholder="Todo title..." />
+                <div class="modal-actions">
+                    <button id="cancelTodoBtn" class="btn btn-secondary">Cancel</button>
+                    <button id="saveTodoBtn" class="btn btn-primary">Add Todo</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Add Subtodo Modal -->
+        <div class="modal" id="addSubtodoModal">
+            <div class="modal-content">
+                <h2>Add Subtask</h2>
+                <p style="color:#6b7280;margin-bottom:12px;">Add a subtask to: <strong id="subtodoParentTitle"></strong></p>
+                <input type="text" id="subtodoTitleInput" placeholder="Subtask title..." />
+                <div class="modal-actions">
+                    <button id="cancelSubtodoBtn" class="btn btn-secondary">Cancel</button>
+                    <button id="saveSubtodoBtn" class="btn btn-primary">Add Subtask</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Edit Todo Modal -->
+        <div class="modal" id="editTodoModal">
+            <div class="modal-content">
+                <h2>Edit Todo</h2>
+                <input type="text" id="editTodoTitleInput" placeholder="Todo title..." />
+                <div class="modal-actions">
+                    <button id="cancelEditTodoBtn" class="btn btn-secondary">Cancel</button>
+                    <button id="saveEditTodoBtn" class="btn btn-primary">Save Changes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Authentication overlay (shown until the user logs in) -->
+    <div class="modal auth-modal" id="authModal">
+        <div class="modal-content auth-content">
+            <h1 class="auth-title">Kanban &amp; Todo</h1>
+            <p class="auth-subtitle">Sign in to manage your boards</p>
+
+            <div class="auth-fields">
+                <input type="text" id="authUsername" placeholder="Username" autocomplete="username" />
+                <input type="password" id="authPassword" placeholder="Password" autocomplete="current-password" />
+            </div>
+
+            <p class="auth-error" id="authError"></p>
+
+            <div class="modal-actions auth-actions">
+                <button id="authSubmitBtn" class="btn btn-primary" style="width:100%">Sign In</button>
+            </div>
+
+            <p class="auth-toggle">
+                <span id="authModeText">Don't have an account?</span>
+                <button id="authSwitchBtn" class="btn-link" type="button">Sign Up</button>
+            </p>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

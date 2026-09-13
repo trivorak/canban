@@ -1,0 +1,16 @@
+services:
+  canban:
+    build: .
+    container_name: canban
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      # Set to "1" when serving over HTTPS so session cookies are marked Secure.
+      COOKIE_SECURE: "0"
+    volumes:
+      # Named volume keeps user data across rebuilds/restarts.
+      - canban-data:/data
+
+volumes:
+  canban-data:
