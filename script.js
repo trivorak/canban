@@ -34,6 +34,7 @@ class KanbanData {
                 {
                     id: 'board-1',
                     title: 'My Board',
+                    tags: [],
                     columns: [
                         { id: 'col-1', title: 'To Do', cards: [] },
                         { id: 'col-2', title: 'In Progress', cards: [] },
@@ -105,6 +106,7 @@ class KanbanData {
         const newBoard = {
             id: 'board-' + Date.now(),
             title: title || 'Untitled Board',
+            tags: [],
             columns: [
                 { id: 'col-' + Date.now() + '-1', title: 'To Do', cards: [] },
                 { id: 'col-' + Date.now() + '-2', title: 'In Progress', cards: [] },
@@ -143,10 +145,54 @@ class KanbanData {
         return newCol;
     }
 
+    addTag(boardId, color, name) {
+        const board = this.data.boards.find(b => b.id === boardId);
+        if (!board) return false;
+        board.tags = board.tags || [];
+        board.tags.push({ id: 'tag-' + Date.now(), color, name });
+        this.save();
+        return true;
+    }
+
+    deleteTag(boardId, tagId) {
+        const board = this.data.boards.find(b => b.id === boardId);
+        if (!board) return false;
+        board.tags = (board.tags || []).filter(tag => tag.id !== tagId);
+        board.columns.forEach(column => column.cards.forEach(card => {
+            if (card.tagId === tagId) delete card.tagId;
+            if (card.tagIds) card.tagIds = card.tagIds.filter(id => id !== tagId);
+        }));
+        this.save();
+        return true;
+    }
+
     deleteColumn(boardId, columnId) {
         const board = this.data.boards.find(b => b.id === boardId);
         if (!board) return false;
+        const column = board.columns.find(c => c.id === columnId);
+        if (!column || column.title.trim().toLowerCase() === 'done') return false;
         board.columns = board.columns.filter(c => c.id !== columnId);
+        this.save();
+        return true;
+    }
+
+    reorderColumns(boardId, columnIds) {
+        const board = this.data.boards.find(b => b.id === boardId);
+        if (!board) return false;
+        const columnsById = new Map(board.columns.map(column => [column.id, column]));
+        const orderedColumns = columnIds.map(id => columnsById.get(id)).filter(Boolean);
+        if (orderedColumns.length !== board.columns.length) return false;
+        board.columns = orderedColumns;
+        this.save();
+        return true;
+    }
+
+    clearColumn(boardId, columnId) {
+        const board = this.data.boards.find(b => b.id === boardId);
+        if (!board) return false;
+        const column = board.columns.find(c => c.id === columnId);
+        if (!column) return false;
+        column.cards = [];
         this.save();
         return true;
     }
@@ -160,6 +206,7 @@ class KanbanData {
             id: 'card-' + Date.now(),
             title: title || 'Untitled',
             description: description || '',
+            tagIds: [],
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
         };
@@ -178,6 +225,7 @@ class KanbanData {
 
         if (updates.title !== undefined) card.title = updates.title;
         if (updates.description !== undefined) card.description = updates.description;
+        if (updates.tagIds !== undefined) card.tagIds = updates.tagIds;
         card.updatedAt = new Date().toISOString();
 
         this.save();
@@ -194,7 +242,7 @@ class KanbanData {
         return true;
     }
 
-    moveCard(boardId, fromColumnId, toColumnId, cardId) {
+    moveCard(boardId, fromColumnId, toColumnId, cardId, insertIndex = null) {
         const board = this.data.boards.find(b => b.id === boardId);
         if (!board) return false;
 
@@ -207,7 +255,10 @@ class KanbanData {
 
         const [card] = fromCol.cards.splice(cardIndex, 1);
         card.updatedAt = new Date().toISOString();
-        toCol.cards.push(card);
+        const destinationIndex = insertIndex === null
+            ? toCol.cards.length
+            : Math.max(0, Math.min(insertIndex, toCol.cards.length));
+        toCol.cards.splice(destinationIndex, 0, card);
         this.save();
         return true;
     }
@@ -233,11 +284,12 @@ class KanbanData {
         return this.data.todos || [];
     }
 
-    addTodo(title) {
+    addTodo(title, dueDate = '') {
         const newTodo = {
             id: 'todo-' + Date.now(),
             title: title || 'Untitled Todo',
             completed: false,
+            dueDate: dueDate || '',
             subtodos: []
         };
         if (!this.data.todos) {
@@ -253,6 +305,7 @@ class KanbanData {
         if (!todo) return false;
         if (updates.title !== undefined) todo.title = updates.title;
         if (updates.completed !== undefined) todo.completed = updates.completed;
+        if (updates.dueDate !== undefined) todo.dueDate = updates.dueDate || '';
         this.save();
         return true;
     }
@@ -263,13 +316,39 @@ class KanbanData {
         return true;
     }
 
-    addSubtodo(todoId, title) {
+    clearCompletedTodos() {
+        const todos = this.data.todos || [];
+        const beforeCount = todos.length;
+        this.data.todos = todos.filter(t => !t.completed);
+        if (this.data.todos.length === beforeCount) return false;
+        this.save();
+        return true;
+    }
+
+    reorderTodosBySection(section, orderedTodoIds) {
+        const todos = this.data.todos || [];
+        const isTargetSection = (todo) => section === 'completed' ? todo.completed : !todo.completed;
+        const targetTodos = todos.filter(isTargetSection);
+        if (targetTodos.length !== orderedTodoIds.length) return false;
+
+        const todoById = new Map(targetTodos.map(todo => [todo.id, todo]));
+        const reorderedTarget = orderedTodoIds.map(id => todoById.get(id)).filter(Boolean);
+        if (reorderedTarget.length !== targetTodos.length) return false;
+
+        let cursor = 0;
+        this.data.todos = todos.map(todo => (isTargetSection(todo) ? reorderedTarget[cursor++] : todo));
+        this.save();
+        return true;
+    }
+
+    addSubtodo(todoId, title, dueDate = '') {
         const todo = this.data.todos.find(t => t.id === todoId);
         if (!todo) return null;
         const newSub = {
             id: 'sub-' + Date.now(),
             title: title || 'Untitled Subtask',
-            completed: false
+            completed: false,
+            dueDate: dueDate || ''
         };
         todo.subtodos.push(newSub);
         this.save();
@@ -283,6 +362,7 @@ class KanbanData {
         if (!subtodo) return false;
         if (updates.title !== undefined) subtodo.title = updates.title;
         if (updates.completed !== undefined) subtodo.completed = updates.completed;
+        if (updates.dueDate !== undefined) subtodo.dueDate = updates.dueDate || '';
         this.save();
         return true;
     }
@@ -353,15 +433,22 @@ class KanbanUI {
         this.editingCardId = null;
         this.editingColumnId = null;
         this.editingTodoId = null;
+        this.editingSubtodoTodoId = null;
         this.editingSubtodoId = null;
+        this.selectedTodoId = null;
+        this.selectedKanbanCardId = null;
+        this.selectedKanbanColumnId = null;
+        this.boardEditMode = false;
+        this.showCompletedTodos = true;
 
         // DOM refs
         this.boardTabsEl = document.getElementById('boardTabs');
         this.boardContainerEl = document.getElementById('boardContainer');
         this.addBoardBtn = document.getElementById('addBoardBtn');
-        this.exportBtn = document.getElementById('exportDataBtn');
-        this.importBtn = document.getElementById('importDataBtn');
-        this.importFileInput = document.getElementById('importFileInput');
+        this.editBoardBtn = document.getElementById('editBoardBtn');
+        this.editBoardLabel = document.getElementById('editBoardLabel');
+        this.manageTagsBtn = document.getElementById('manageTagsBtn');
+        this.manageTagsModal = document.getElementById('manageTagsModal');
 
         // Modals
         this.columnModal = document.getElementById('addColumnModal');
@@ -370,6 +457,7 @@ class KanbanUI {
         this.addTodoModal = document.getElementById('addTodoModal');
         this.addSubtodoModal = document.getElementById('addSubtodoModal');
         this.editTodoModal = document.getElementById('editTodoModal');
+        this.editSubtodoModal = document.getElementById('editSubtodoModal');
 
         // Tab elements
         this.mainTabs = document.querySelectorAll('.main-tab');
@@ -383,6 +471,7 @@ class KanbanUI {
     init() {
         this.setupThemeToggle();
         this.setupEventListeners();
+        this.setupOptionalDatePickers();
         this.setupTabSwitching();
         this.data.addListener(() => {
             this.render();
@@ -419,23 +508,40 @@ class KanbanUI {
         }
     }
 
-    setupTabSwitching() {
-        this.mainTabs.forEach(tab => {
-            tab.addEventListener('click', () => {
-                this.mainTabs.forEach(t => t.classList.remove('active'));
-                tab.classList.add('active');
-
-                const tabName = tab.dataset.tab;
-                if (tabName === 'kanban') {
-                    this.kanbanTab.style.display = 'flex';
-                    this.todoTab.style.display = 'none';
-                } else {
-                    this.kanbanTab.style.display = 'none';
-                    this.todoTab.style.display = 'flex';
-                    this.renderTodos();
+    setupOptionalDatePickers() {
+        document.querySelectorAll('.due-date-field input[type="date"]').forEach((input) => {
+            input.addEventListener('click', () => {
+                if (!input.value) {
+                    input.value = this.getTodayIsoDate();
                 }
             });
         });
+    }
+
+    setupTabSwitching() {
+        this.mainTabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                this.activateMainTab(tab.dataset.tab);
+            });
+        });
+    }
+
+    activateMainTab(tabName) {
+        this.mainTabs.forEach(t => t.classList.remove('active'));
+        const selectedTab = Array.from(this.mainTabs).find(tab => tab.dataset.tab === tabName);
+        if (selectedTab) selectedTab.classList.add('active');
+
+        if (tabName === 'kanban') {
+            this.kanbanTab.style.display = 'flex';
+            this.todoTab.style.display = 'none';
+            this.ensureValidKanbanSelection(true);
+            this.focusSelectedKanbanCard();
+            return;
+        }
+
+        this.kanbanTab.style.display = 'none';
+        this.todoTab.style.display = 'flex';
+        this.renderTodos(true);
     }
 
     setupEventListeners() {
@@ -447,37 +553,30 @@ class KanbanUI {
             }
         });
 
-        // Export
-        this.exportBtn.addEventListener('click', () => {
-            const data = this.data.exportData();
-            const blob = new Blob([data], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `kanban-backup-${new Date().toISOString().slice(0,10)}.json`;
-            a.click();
-            URL.revokeObjectURL(url);
+        this.editBoardBtn.addEventListener('click', () => {
+            if (!this.data.getCurrentBoard()) return;
+            this.boardEditMode = !this.boardEditMode;
+            this.render();
         });
 
-        // Import
-        this.importBtn.addEventListener('click', () => {
-            this.importFileInput.click();
+        this.manageTagsBtn.addEventListener('click', () => {
+            this.renderTagDefinitions();
+            this.manageTagsModal.classList.add('show');
         });
 
-        this.importFileInput.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = (ev) => {
-                const success = this.data.importData(ev.target.result);
-                if (success) {
-                    alert('Data imported successfully!');
-                } else {
-                    alert('Invalid data format.');
-                }
-                this.importFileInput.value = '';
-            };
-            reader.readAsText(file);
+        document.getElementById('addTagBtn').addEventListener('click', () => {
+            const color = document.getElementById('tagColorInput').value;
+            const nameInput = document.getElementById('tagNameInput');
+            const name = nameInput.value.trim();
+            const board = this.data.getCurrentBoard();
+            if (!name || !board) return;
+            this.data.addTag(board.id, color, name);
+            nameInput.value = '';
+            this.renderTagDefinitions();
+        });
+
+        document.getElementById('closeTagsBtn').addEventListener('click', () => {
+            this.manageTagsModal.classList.remove('show');
         });
 
         // Column Modal
@@ -503,10 +602,12 @@ class KanbanUI {
             const descInput = document.getElementById('cardDescriptionInput');
             const title = titleInput.value.trim();
             const desc = descInput.value.trim();
+            const tagIds = this.getSelectedTagIds('cardTagInput');
             if (title) {
                 const board = this.data.getCurrentBoard();
                 const columnId = this.cardModal.dataset.columnId;
-                this.data.addCard(board.id, columnId, title, desc);
+                const card = this.data.addCard(board.id, columnId, title, desc);
+                if (card) this.data.updateCard(board.id, columnId, card.id, { tagIds });
                 titleInput.value = '';
                 descInput.value = '';
                 this.cardModal.classList.remove('show');
@@ -525,12 +626,14 @@ class KanbanUI {
             const descInput = document.getElementById('editCardDescriptionInput');
             const title = titleInput.value.trim();
             const desc = descInput.value.trim();
+            const tagIds = this.getSelectedTagIds('editCardTagInput');
 
             if (title && this.editingCardId && this.editingColumnId) {
                 const board = this.data.getCurrentBoard();
                 this.data.updateCard(board.id, this.editingColumnId, this.editingCardId, {
                     title: title,
-                    description: desc
+                    description: desc,
+                    tagIds
                 });
                 this.editCardModal.classList.remove('show');
                 this.editingCardId = null;
@@ -556,11 +659,14 @@ class KanbanUI {
         const saveTodoBtn = document.getElementById('saveTodoBtn');
         if (saveTodoBtn) {
             saveTodoBtn.addEventListener('click', () => {
-                const input = document.getElementById('todoTitleInput');
-                const title = input.value.trim();
+                const titleInput = document.getElementById('todoTitleInput');
+                const dueDateInput = document.getElementById('todoDueDateInput');
+                const title = titleInput.value.trim();
+                const dueDate = dueDateInput.value || '';
                 if (title) {
-                    this.data.addTodo(title);
-                    input.value = '';
+                    this.data.addTodo(title, dueDate);
+                    titleInput.value = '';
+                    dueDateInput.value = '';
                     this.addTodoModal.classList.remove('show');
                     this.renderTodos();
                 } else {
@@ -573,6 +679,7 @@ class KanbanUI {
         if (cancelTodoBtn) {
             cancelTodoBtn.addEventListener('click', () => {
                 document.getElementById('todoTitleInput').value = '';
+                document.getElementById('todoDueDateInput').value = '';
                 this.addTodoModal.classList.remove('show');
             });
         }
@@ -581,12 +688,15 @@ class KanbanUI {
         const saveSubtodoBtn = document.getElementById('saveSubtodoBtn');
         if (saveSubtodoBtn) {
             saveSubtodoBtn.addEventListener('click', () => {
-                const input = document.getElementById('subtodoTitleInput');
-                const title = input.value.trim();
+                const titleInput = document.getElementById('subtodoTitleInput');
+                const dueDateInput = document.getElementById('subtodoDueDateInput');
+                const title = titleInput.value.trim();
+                const dueDate = dueDateInput.value || '';
                 const todoId = this.addSubtodoModal.dataset.todoId;
                 if (title && todoId) {
-                    this.data.addSubtodo(todoId, title);
-                    input.value = '';
+                    this.data.addSubtodo(todoId, title, dueDate);
+                    titleInput.value = '';
+                    dueDateInput.value = '';
                     this.addSubtodoModal.classList.remove('show');
                     this.renderTodos();
                 } else {
@@ -599,6 +709,7 @@ class KanbanUI {
         if (cancelSubtodoBtn) {
             cancelSubtodoBtn.addEventListener('click', () => {
                 document.getElementById('subtodoTitleInput').value = '';
+                document.getElementById('subtodoDueDateInput').value = '';
                 this.addSubtodoModal.classList.remove('show');
             });
         }
@@ -607,11 +718,14 @@ class KanbanUI {
         const saveEditTodoBtn = document.getElementById('saveEditTodoBtn');
         if (saveEditTodoBtn) {
             saveEditTodoBtn.addEventListener('click', () => {
-                const input = document.getElementById('editTodoTitleInput');
-                const title = input.value.trim();
+                const titleInput = document.getElementById('editTodoTitleInput');
+                const dueDateInput = document.getElementById('editTodoDueDateInput');
+                const title = titleInput.value.trim();
+                const dueDate = dueDateInput.value || '';
                 if (title && this.editingTodoId) {
-                    this.data.updateTodo(this.editingTodoId, { title: title });
-                    input.value = '';
+                    this.data.updateTodo(this.editingTodoId, { title: title, dueDate: dueDate });
+                    titleInput.value = '';
+                    dueDateInput.value = '';
                     this.editTodoModal.classList.remove('show');
                     this.editingTodoId = null;
                     this.renderTodos();
@@ -625,8 +739,44 @@ class KanbanUI {
         if (cancelEditTodoBtn) {
             cancelEditTodoBtn.addEventListener('click', () => {
                 document.getElementById('editTodoTitleInput').value = '';
+                document.getElementById('editTodoDueDateInput').value = '';
                 this.editTodoModal.classList.remove('show');
                 this.editingTodoId = null;
+            });
+        }
+
+        const saveEditSubtodoBtn = document.getElementById('saveEditSubtodoBtn');
+        if (saveEditSubtodoBtn) {
+            saveEditSubtodoBtn.addEventListener('click', () => {
+                const titleInput = document.getElementById('editSubtodoTitleInput');
+                const dueDateInput = document.getElementById('editSubtodoDueDateInput');
+                const title = titleInput.value.trim();
+                const dueDate = dueDateInput.value || '';
+                if (title && this.editingSubtodoTodoId && this.editingSubtodoId) {
+                    this.data.updateSubtodo(this.editingSubtodoTodoId, this.editingSubtodoId, {
+                        title,
+                        dueDate
+                    });
+                    titleInput.value = '';
+                    dueDateInput.value = '';
+                    this.editSubtodoModal.classList.remove('show');
+                    this.editingSubtodoTodoId = null;
+                    this.editingSubtodoId = null;
+                    this.renderTodos();
+                } else {
+                    alert('Please enter a subtask title.');
+                }
+            });
+        }
+
+        const cancelEditSubtodoBtn = document.getElementById('cancelEditSubtodoBtn');
+        if (cancelEditSubtodoBtn) {
+            cancelEditSubtodoBtn.addEventListener('click', () => {
+                document.getElementById('editSubtodoTitleInput').value = '';
+                document.getElementById('editSubtodoDueDateInput').value = '';
+                this.editSubtodoModal.classList.remove('show');
+                this.editingSubtodoTodoId = null;
+                this.editingSubtodoId = null;
             });
         }
 
@@ -634,11 +784,7 @@ class KanbanUI {
         document.querySelectorAll('.modal').forEach(modal => {
             modal.addEventListener('click', (e) => {
                 if (e.target === modal) {
-                    modal.classList.remove('show');
-                    this.editingCardId = null;
-                    this.editingColumnId = null;
-                    this.editingTodoId = null;
-                    this.editingSubtodoId = null;
+                    this.cancelAndCloseModals();
                 }
             });
         });
@@ -646,11 +792,83 @@ class KanbanUI {
         // Keyboard shortcuts
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
-                document.querySelectorAll('.modal.show').forEach(m => m.classList.remove('show'));
-                this.editingCardId = null;
-                this.editingColumnId = null;
-                this.editingTodoId = null;
-                this.editingSubtodoId = null;
+                this.cancelAndCloseModals();
+                return;
+            }
+
+            if (this.handleKanbanKeyboardShortcuts(e)) return;
+
+            if (!this.isKanbanTabActive() && e.ctrlKey && !e.metaKey && !e.altKey && e.key === 'ArrowUp') {
+                e.preventDefault();
+                this.moveSelectedTodoInSection(-1);
+                return;
+            }
+
+            if (!this.isKanbanTabActive() && e.ctrlKey && !e.metaKey && !e.altKey && e.key === 'ArrowDown') {
+                e.preventDefault();
+                this.moveSelectedTodoInSection(1);
+                return;
+            }
+
+            if (this.shouldIgnoreGlobalShortcut(e)) return;
+
+            if (this.isKanbanTabActive() && e.key.toLowerCase() === 'e') {
+                e.preventDefault();
+                this.openEditSelectedKanbanCardModal();
+                return;
+            }
+
+            if (e.key.toLowerCase() === 'a' && this.isKanbanTabActive()) {
+                e.preventDefault();
+                this.openQuickAddCardModal();
+                return;
+            }
+
+            if (e.key.toLowerCase() === 'a' && !this.isKanbanTabActive()) {
+                e.preventDefault();
+                this.openQuickAddTodoModal();
+                return;
+            }
+
+            if (!this.isKanbanTabActive() && e.key === 'ArrowDown') {
+                e.preventDefault();
+                this.moveTodoSelection(1);
+                return;
+            }
+
+            if (!this.isKanbanTabActive() && e.key === 'ArrowUp') {
+                e.preventDefault();
+                this.moveTodoSelection(-1);
+                return;
+            }
+
+            if (!this.isKanbanTabActive() && e.key.toLowerCase() === 's') {
+                e.preventDefault();
+                this.openQuickAddSubtodoModalForSelected();
+                return;
+            }
+
+            if (!this.isKanbanTabActive() && e.key.toLowerCase() === 'e') {
+                e.preventDefault();
+                this.openEditSelectedTodoModal();
+                return;
+            }
+
+            if (!this.isKanbanTabActive() && (e.code === 'Space' || e.key === ' ' || e.key === 'Spacebar')) {
+                e.preventDefault();
+                this.toggleSelectedTodoCompletion();
+                return;
+            }
+
+            if (e.key.toLowerCase() === 'k') {
+                e.preventDefault();
+                this.activateMainTab('kanban');
+                return;
+            }
+
+            if (e.key.toLowerCase() === 't') {
+                e.preventDefault();
+                this.activateMainTab('todo');
             }
         });
 
@@ -696,8 +914,428 @@ class KanbanUI {
         const currentBoard = this.data.getCurrentBoard();
         this.currentBoard = currentBoard;
 
+        this.updateBoardEditButton();
         this.renderTabs(boards, currentBoard);
         this.renderBoard(currentBoard);
+    }
+
+    updateBoardEditButton() {
+        const hasBoard = Boolean(this.currentBoard);
+        this.editBoardBtn.disabled = !hasBoard;
+        this.editBoardBtn.setAttribute('aria-pressed', String(this.boardEditMode));
+        this.editBoardLabel.textContent = this.boardEditMode ? 'Done editing' : 'Edit board';
+    }
+
+    isKanbanTabActive() {
+        return this.kanbanTab.style.display !== 'none';
+    }
+
+    handleKanbanKeyboardShortcuts(event) {
+        if (!this.isKanbanTabActive()) return false;
+        if (document.querySelector('.modal.show')) return false;
+        if (this.isTypingTarget(event.target)) return false;
+
+        const key = event.key;
+        const isArrowKey = key === 'ArrowUp' || key === 'ArrowDown' || key === 'ArrowLeft' || key === 'ArrowRight';
+        if (!isArrowKey) return false;
+
+        if (event.ctrlKey && !event.metaKey && !event.altKey) {
+            event.preventDefault();
+            if (key === 'ArrowUp') this.moveSelectedKanbanCardInColumn(-1);
+            if (key === 'ArrowDown') this.moveSelectedKanbanCardInColumn(1);
+            if (key === 'ArrowLeft') this.moveSelectedKanbanCardToAdjacentColumn(-1);
+            if (key === 'ArrowRight') this.moveSelectedKanbanCardToAdjacentColumn(1);
+            return true;
+        }
+
+        if (!event.ctrlKey && !event.metaKey && !event.altKey) {
+            event.preventDefault();
+            if (key === 'ArrowUp') this.moveKanbanSelectionVertical(-1);
+            if (key === 'ArrowDown') this.moveKanbanSelectionVertical(1);
+            if (key === 'ArrowLeft') this.moveKanbanSelectionHorizontal(-1);
+            if (key === 'ArrowRight') this.moveKanbanSelectionHorizontal(1);
+            return true;
+        }
+
+        return false;
+    }
+
+    shouldIgnoreGlobalShortcut(event) {
+        if (event.ctrlKey || event.metaKey || event.altKey) return true;
+        if (document.querySelector('.modal.show')) return true;
+        return this.isTypingTarget(event.target);
+    }
+
+    isTypingTarget(target) {
+        if (!target) return false;
+        if (target.isContentEditable) return true;
+        const tagName = target.tagName;
+        return tagName === 'INPUT' || tagName === 'TEXTAREA' || tagName === 'SELECT';
+    }
+
+    openQuickAddCardModal() {
+        const board = this.data.getCurrentBoard();
+        if (!board || !Array.isArray(board.columns) || board.columns.length === 0) return;
+
+        const preferredColumn = board.columns.find(column => column.title.trim().toLowerCase() !== 'done') || board.columns[0];
+        if (!preferredColumn) return;
+
+        document.getElementById('cardTitleInput').value = '';
+        document.getElementById('cardDescriptionInput').value = '';
+        this.cardModal.dataset.columnId = preferredColumn.id;
+        this.populateTagSelect('cardTagInput');
+        this.cardModal.classList.add('show');
+        document.getElementById('cardTitleInput').focus();
+    }
+
+    ensureValidKanbanSelection(selectTopLeft = false) {
+        const board = this.data.getCurrentBoard();
+        if (!board || !Array.isArray(board.columns)) {
+            this.selectedKanbanCardId = null;
+            this.selectedKanbanColumnId = null;
+            return;
+        }
+
+        const firstSelectable = this.getFirstKanbanCardPosition(board);
+        if (!firstSelectable) {
+            this.selectedKanbanCardId = null;
+            this.selectedKanbanColumnId = null;
+            this.applyKanbanSelection();
+            return;
+        }
+
+        const currentPosition = this.getSelectedKanbanPosition(board);
+        if (selectTopLeft || !currentPosition) {
+            this.selectedKanbanCardId = firstSelectable.card.id;
+            this.selectedKanbanColumnId = firstSelectable.column.id;
+        }
+
+        this.applyKanbanSelection();
+    }
+
+    getFirstKanbanCardPosition(board) {
+        for (let colIndex = 0; colIndex < board.columns.length; colIndex += 1) {
+            const column = board.columns[colIndex];
+            if (!column.cards || column.cards.length === 0) continue;
+            return { colIndex, cardIndex: 0, column, card: column.cards[0] };
+        }
+        return null;
+    }
+
+    getSelectedKanbanPosition(board = this.data.getCurrentBoard()) {
+        if (!board || !Array.isArray(board.columns) || !this.selectedKanbanCardId) return null;
+
+        for (let colIndex = 0; colIndex < board.columns.length; colIndex += 1) {
+            const column = board.columns[colIndex];
+            const cardIndex = (column.cards || []).findIndex(card => card.id === this.selectedKanbanCardId);
+            if (cardIndex !== -1) {
+                return {
+                    colIndex,
+                    cardIndex,
+                    column,
+                    card: column.cards[cardIndex]
+                };
+            }
+        }
+        return null;
+    }
+
+    applyKanbanSelection() {
+        const cards = this.boardContainerEl.querySelectorAll('.card');
+        cards.forEach((cardEl) => {
+            const isSelected = cardEl.dataset.cardId === this.selectedKanbanCardId;
+            cardEl.classList.toggle('selected-card', isSelected);
+            cardEl.setAttribute('tabindex', isSelected ? '0' : '-1');
+        });
+    }
+
+    focusSelectedKanbanCard() {
+        const selectedEl = this.boardContainerEl.querySelector('.card.selected-card');
+        if (!selectedEl) return;
+        selectedEl.focus();
+        selectedEl.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    }
+
+    setSelectedKanbanCard(columnId, cardId, shouldFocus = false) {
+        this.selectedKanbanColumnId = columnId;
+        this.selectedKanbanCardId = cardId;
+        this.applyKanbanSelection();
+        if (shouldFocus) this.focusSelectedKanbanCard();
+    }
+
+    moveKanbanSelectionVertical(step) {
+        const board = this.data.getCurrentBoard();
+        const position = this.getSelectedKanbanPosition(board) || this.getFirstKanbanCardPosition(board);
+        if (!position) return;
+
+        const cards = position.column.cards || [];
+        if (cards.length === 0) return;
+        const nextIndex = (position.cardIndex + step + cards.length) % cards.length;
+        const nextCard = cards[nextIndex];
+        this.setSelectedKanbanCard(position.column.id, nextCard.id, true);
+    }
+
+    moveKanbanSelectionHorizontal(step) {
+        const board = this.data.getCurrentBoard();
+        const position = this.getSelectedKanbanPosition(board) || this.getFirstKanbanCardPosition(board);
+        if (!position) return;
+
+        const totalColumns = board.columns.length;
+        for (let offset = 1; offset <= totalColumns; offset += 1) {
+            const candidateIndex = (position.colIndex + (step * offset) + totalColumns) % totalColumns;
+            const candidateColumn = board.columns[candidateIndex];
+            if (!candidateColumn.cards || candidateColumn.cards.length === 0) continue;
+            const nextCardIndex = Math.min(position.cardIndex, candidateColumn.cards.length - 1);
+            const nextCard = candidateColumn.cards[nextCardIndex];
+            this.setSelectedKanbanCard(candidateColumn.id, nextCard.id, true);
+            return;
+        }
+    }
+
+    moveSelectedKanbanCardInColumn(step) {
+        const board = this.data.getCurrentBoard();
+        const position = this.getSelectedKanbanPosition(board);
+        if (!position) return;
+
+        const destinationIndex = position.cardIndex + step;
+        if (destinationIndex < 0 || destinationIndex >= position.column.cards.length) return;
+
+        this.selectedKanbanColumnId = position.column.id;
+        this.selectedKanbanCardId = position.card.id;
+        this.data.moveCard(board.id, position.column.id, position.column.id, position.card.id, destinationIndex);
+    }
+
+    moveSelectedKanbanCardToAdjacentColumn(step) {
+        const board = this.data.getCurrentBoard();
+        const position = this.getSelectedKanbanPosition(board);
+        if (!position) return;
+
+        const destinationColIndex = position.colIndex + step;
+        if (destinationColIndex < 0 || destinationColIndex >= board.columns.length) return;
+
+        const destinationColumn = board.columns[destinationColIndex];
+        const destinationIndex = Math.min(position.cardIndex, destinationColumn.cards.length);
+
+        this.selectedKanbanColumnId = destinationColumn.id;
+        this.selectedKanbanCardId = position.card.id;
+        this.data.moveCard(board.id, position.column.id, destinationColumn.id, position.card.id, destinationIndex);
+    }
+
+    openEditSelectedKanbanCardModal() {
+        const board = this.data.getCurrentBoard();
+        const position = this.getSelectedKanbanPosition(board);
+        if (!board || !position) return;
+        this.openEditModal(board.id, position.column.id, position.card.id);
+    }
+
+    openQuickAddTodoModal() {
+        document.getElementById('todoTitleInput').value = '';
+        document.getElementById('todoDueDateInput').value = '';
+        this.addTodoModal.classList.add('show');
+        document.getElementById('todoTitleInput').focus();
+    }
+
+    moveTodoSelection(direction) {
+        const todoItems = this.getVisibleTodoItems();
+        if (todoItems.length === 0) return;
+
+        const currentIndex = todoItems.findIndex(item => item.dataset.todoId === this.selectedTodoId);
+        const baseIndex = currentIndex === -1 ? (direction > 0 ? 0 : todoItems.length - 1) : currentIndex;
+        const nextIndex = Math.max(0, Math.min(todoItems.length - 1, baseIndex + direction));
+        const nextTodoId = todoItems[nextIndex]?.dataset.todoId;
+        if (!nextTodoId) return;
+
+        this.selectedTodoId = nextTodoId;
+        this.applyTodoSelection();
+        todoItems[nextIndex].scrollIntoView({ block: 'nearest' });
+    }
+
+    openQuickAddSubtodoModalForSelected() {
+        const selectedTodoId = this.selectedTodoId;
+        if (!selectedTodoId) return;
+
+        const todo = this.data.getTodos().find(t => t.id === selectedTodoId);
+        if (!todo) return;
+
+        document.getElementById('subtodoParentTitle').textContent = todo.title;
+        document.getElementById('subtodoTitleInput').value = '';
+        document.getElementById('subtodoDueDateInput').value = '';
+        this.addSubtodoModal.dataset.todoId = selectedTodoId;
+        this.addSubtodoModal.classList.add('show');
+        document.getElementById('subtodoTitleInput').focus();
+    }
+
+    openEditSelectedTodoModal() {
+        const selectedTodoId = this.selectedTodoId;
+        if (!selectedTodoId) return;
+
+        const todo = this.data.getTodos().find(t => t.id === selectedTodoId);
+        if (!todo) return;
+
+        this.editingTodoId = selectedTodoId;
+        document.getElementById('editTodoTitleInput').value = todo.title;
+        document.getElementById('editTodoDueDateInput').value = todo.dueDate || '';
+        this.editTodoModal.classList.add('show');
+        document.getElementById('editTodoTitleInput').focus();
+        document.getElementById('editTodoTitleInput').select();
+    }
+
+    moveSelectedTodoInSection(step) {
+        if (!this.selectedTodoId) return;
+
+        const todos = this.data.getTodos();
+        const selectedTodo = todos.find(todo => todo.id === this.selectedTodoId);
+        if (!selectedTodo) return;
+
+        const section = selectedTodo.completed ? 'completed' : 'active';
+        const sectionTodos = todos.filter(todo => section === 'completed' ? todo.completed : !todo.completed);
+        const currentIndex = sectionTodos.findIndex(todo => todo.id === this.selectedTodoId);
+        if (currentIndex === -1) return;
+
+        const targetIndex = currentIndex + step;
+        if (targetIndex < 0 || targetIndex >= sectionTodos.length) return;
+
+        const orderedIds = sectionTodos.map(todo => todo.id);
+        const [movedId] = orderedIds.splice(currentIndex, 1);
+        orderedIds.splice(targetIndex, 0, movedId);
+        this.data.reorderTodosBySection(section, orderedIds);
+    }
+
+    toggleSelectedTodoCompletion() {
+        if (!this.selectedTodoId) return;
+        this.data.toggleTodo(this.selectedTodoId);
+    }
+
+    getVisibleTodoItems() {
+        return Array.from(this.todoListEl.querySelectorAll('.todo-item'));
+    }
+
+    applyTodoSelection() {
+        const todoItems = this.getVisibleTodoItems();
+        todoItems.forEach(item => {
+            const isSelected = item.dataset.todoId === this.selectedTodoId;
+            item.classList.toggle('selected-todo', isSelected);
+            item.setAttribute('tabindex', isSelected ? '0' : '-1');
+        });
+    }
+
+    ensureValidTodoSelection() {
+        const todoItems = this.getVisibleTodoItems();
+        if (todoItems.length === 0) {
+            this.selectedTodoId = null;
+            return;
+        }
+
+        const exists = todoItems.some(item => item.dataset.todoId === this.selectedTodoId);
+        if (!exists) {
+            this.selectedTodoId = todoItems[0].dataset.todoId;
+        }
+        this.applyTodoSelection();
+    }
+
+    cancelAndCloseModals() {
+        document.querySelectorAll('.modal.show').forEach(modal => modal.classList.remove('show'));
+
+        this.editingCardId = null;
+        this.editingColumnId = null;
+        this.editingTodoId = null;
+        this.editingSubtodoTodoId = null;
+        this.editingSubtodoId = null;
+
+        const fieldIds = [
+            'columnTitleInput',
+            'cardTitleInput',
+            'cardDescriptionInput',
+            'todoTitleInput',
+            'todoDueDateInput',
+            'subtodoTitleInput',
+            'subtodoDueDateInput',
+            'editTodoTitleInput',
+            'editTodoDueDateInput',
+            'editSubtodoTitleInput',
+            'editSubtodoDueDateInput',
+            'editCardTitleInput',
+            'editCardDescriptionInput'
+        ];
+
+        fieldIds.forEach((id) => {
+            const element = document.getElementById(id);
+            if (element) element.value = '';
+        });
+
+        if (this.addSubtodoModal) delete this.addSubtodoModal.dataset.todoId;
+        if (this.cardModal) delete this.cardModal.dataset.columnId;
+    }
+
+    populateTagSelect(selectId, selectedTagIds = []) {
+        const select = document.getElementById(selectId);
+        const tags = this.data.getCurrentBoard()?.tags || [];
+        const selectedIds = Array.isArray(selectedTagIds) ? selectedTagIds : [selectedTagIds];
+        select.dataset.selectedTagIds = JSON.stringify(selectedIds);
+        select.innerHTML = '<option value="">Add a tag...</option>';
+        tags.filter(tag => !selectedIds.includes(tag.id)).forEach(tag => {
+            const option = document.createElement('option');
+            option.value = tag.id;
+            option.textContent = tag.name;
+            select.appendChild(option);
+        });
+        this.renderSelectedTags(selectId);
+        select.onchange = () => {
+            if (!select.value) return;
+            const updatedIds = [...this.getSelectedTagIds(selectId), select.value];
+            this.populateTagSelect(selectId, updatedIds);
+        };
+    }
+
+    getSelectedTagIds(selectId) {
+        const select = document.getElementById(selectId);
+        try {
+            return JSON.parse(select.dataset.selectedTagIds || '[]');
+        } catch {
+            return [];
+        }
+    }
+
+    renderSelectedTags(selectId) {
+        const selectedTagsEl = document.getElementById(
+            selectId === 'cardTagInput' ? 'cardSelectedTags' : 'editCardSelectedTags'
+        );
+        const tags = this.data.getCurrentBoard()?.tags || [];
+        const selectedIds = this.getSelectedTagIds(selectId);
+        selectedTagsEl.innerHTML = tags.filter(tag => selectedIds.includes(tag.id)).map(tag => `
+            <span class="task-tag" style="--tag-color:${tag.color}">
+                ${this.escapeHtml(tag.name)}
+                <button type="button" data-tag-id="${tag.id}" title="Remove ${this.escapeHtml(tag.name)}">${this.icons.close}</button>
+            </span>
+        `).join('');
+        selectedTagsEl.querySelectorAll('button').forEach(button => {
+            button.addEventListener('click', () => {
+                this.populateTagSelect(
+                    selectId,
+                    this.getSelectedTagIds(selectId).filter(id => id !== button.dataset.tagId)
+                );
+            });
+        });
+    }
+
+    renderTagDefinitions() {
+        const list = document.getElementById('tagDefinitionList');
+        const board = this.data.getCurrentBoard();
+        const tags = board?.tags || [];
+        list.innerHTML = tags.length
+            ? tags.map(tag => `
+                <div class="tag-definition">
+                    <span class="task-tag" style="--tag-color:${tag.color}">${this.escapeHtml(tag.name)}</span>
+                    <button class="delete-tag-btn" data-tag-id="${tag.id}" title="Remove tag">${this.icons.close}</button>
+                </div>
+            `).join('')
+            : '<p class="tag-empty">No tags defined yet.</p>';
+        list.querySelectorAll('.delete-tag-btn').forEach(button => {
+            button.addEventListener('click', () => {
+                this.data.deleteTag(board.id, button.dataset.tagId);
+                this.renderTagDefinitions();
+            });
+        });
     }
 
     renderTabs(boards, currentBoard) {
@@ -725,16 +1363,18 @@ class KanbanUI {
             this.boardTabsEl.appendChild(tab);
         });
 
-        if (boards.length > 0) {
-            const addTab = document.createElement('div');
-            addTab.className = 'board-tab add-board';
-            addTab.innerHTML = this.icons.add;
-            addTab.addEventListener('click', () => {
-                this.columnModal.classList.add('show');
-                document.getElementById('columnTitleInput').focus();
-            });
-            this.boardTabsEl.appendChild(addTab);
-        }
+        // "New board" chip mirrors the old add-tab affordance.
+        const addTab = document.createElement('div');
+        addTab.className = 'board-tab add-board';
+        addTab.title = 'Add board';
+        addTab.innerHTML = this.icons.add;
+        addTab.addEventListener('click', () => {
+            const title = prompt('Enter board name:');
+            if (title !== null) {
+                this.data.addBoard(title || 'Untitled Board');
+            }
+        });
+        this.boardTabsEl.appendChild(addTab);
     }
 
     renderBoard(board) {
@@ -758,17 +1398,21 @@ class KanbanUI {
             boardEl.appendChild(colEl);
         });
 
-        const addColBtn = document.createElement('div');
-        addColBtn.className = 'column add-column';
-        addColBtn.innerHTML = `${this.icons.add} Add Column`;
-        addColBtn.addEventListener('click', () => {
-            this.columnModal.classList.add('show');
-            document.getElementById('columnTitleInput').focus();
-        });
+        if (this.boardEditMode) {
+            const addColBtn = document.createElement('div');
+            addColBtn.className = 'column add-column';
+            addColBtn.innerHTML = `${this.icons.add} Add Column`;
+            addColBtn.addEventListener('click', () => {
+                this.columnModal.classList.add('show');
+                document.getElementById('columnTitleInput').focus();
+            });
 
-        boardEl.appendChild(addColBtn);
+            boardEl.appendChild(addColBtn);
+        }
         this.boardContainerEl.appendChild(boardEl);
         this.setupDragDrop(board);
+        this.setupColumnDragDrop(board);
+        this.ensureValidKanbanSelection();
     }
 
     createColumnElement(board, column, index = 0) {
@@ -780,29 +1424,41 @@ class KanbanUI {
         colEl.dataset.accent = String(index % 6);
 
         colEl.innerHTML = `
-        <div class="column-header">
+        <div class="column-header${this.boardEditMode ? ' draggable-column-header' : ''}" ${this.boardEditMode ? 'draggable="true"' : ''}>
         <h3><span class="column-dot"></span>${column.title} <span class="card-count">(${column.cards.length})</span></h3>
         <div class="column-actions">
         <button class="add-card-btn" title="Add Card">${this.icons.add}</button>
-        <button class="delete-column-btn" title="Delete Column">${this.icons.trash}</button>
+        <button class="clear-column-btn" title="Clear all cards">${this.icons.eraser}</button>
+        ${this.boardEditMode && column.title.trim().toLowerCase() !== 'done' ? `<button class="delete-column-btn" title="Delete Column">${this.icons.trash}</button>` : ''}
         </div>
         </div>
         <div class="cards-container" data-column-id="${column.id}">
-        ${column.cards.map(card => this.createCardHTML(card, column.id)).join('')}
+        ${column.cards.map(card => this.createCardHTML(card, column.id, column.title.trim().toLowerCase() === 'done', board.tags || [])).join('')}
         </div>
         `;
 
         colEl.querySelector('.add-card-btn').addEventListener('click', () => {
             this.cardModal.dataset.columnId = column.id;
+            this.populateTagSelect('cardTagInput');
             this.cardModal.classList.add('show');
             document.getElementById('cardTitleInput').focus();
         });
 
-        colEl.querySelector('.delete-column-btn').addEventListener('click', () => {
-            if (confirm(`Delete column "${column.title}" and all its cards?`)) {
-                this.data.deleteColumn(board.id, column.id);
+        colEl.querySelector('.clear-column-btn').addEventListener('click', () => {
+            if (column.cards.length === 0) return;
+            if (confirm(`Clear all ${column.cards.length} cards from "${column.title}"?`)) {
+                this.data.clearColumn(board.id, column.id);
             }
         });
+
+        const deleteColumnBtn = colEl.querySelector('.delete-column-btn');
+        if (deleteColumnBtn) {
+            deleteColumnBtn.addEventListener('click', () => {
+                if (confirm(`Delete column "${column.title}" and all its cards?`)) {
+                    this.data.deleteColumn(board.id, column.id);
+                }
+            });
+        }
 
         colEl.querySelectorAll('.card-delete').forEach(btn => {
             btn.addEventListener('click', (e) => {
@@ -823,9 +1479,15 @@ class KanbanUI {
         });
 
         colEl.querySelectorAll('.card').forEach(cardEl => {
+            cardEl.addEventListener('click', (e) => {
+                if (e.target.closest('.card-actions')) return;
+                this.setSelectedKanbanCard(column.id, cardEl.dataset.cardId, true);
+            });
+
             cardEl.addEventListener('dblclick', (e) => {
                 if (e.target.closest('.card-delete')) return;
                 const cardId = cardEl.dataset.cardId;
+                this.setSelectedKanbanCard(column.id, cardId, false);
                 this.openEditModal(board.id, column.id, cardId);
             });
         });
@@ -833,17 +1495,20 @@ class KanbanUI {
         return colEl;
     }
 
-    createCardHTML(card, columnId) {
+    createCardHTML(card, columnId, isComplete, tags) {
         const hasDescription = card.description && card.description.trim().length > 0;
         const updatedInfo = card.updatedAt ? `Updated: ${new Date(card.updatedAt).toLocaleString()}` : '';
+        const tagIds = card.tagIds || (card.tagId ? [card.tagId] : []);
+        const taskTags = tags.filter(tag => tagIds.includes(tag.id));
 
         return `
-        <div class="card" draggable="true" data-card-id="${card.id}" data-column-id="${columnId}">
+        <div class="card${isComplete ? ' completed' : ''}" draggable="true" data-card-id="${card.id}" data-column-id="${columnId}">
         <div class="card-actions">
         <button class="card-edit" data-card-id="${card.id}" title="Edit card">${this.icons.edit}</button>
         <button class="card-delete" data-card-id="${card.id}" title="Delete card">${this.icons.close}</button>
         </div>
         <div class="card-title">${this.escapeHtml(card.title)}</div>
+        ${taskTags.map(tag => `<span class="task-tag" style="--tag-color:${tag.color}">${this.escapeHtml(tag.name)}</span>`).join('')}
         ${hasDescription ? `<div class="card-description">${this.escapeHtml(card.description)}</div>` : ''}
         ${updatedInfo ? `<div class="card-meta">${updatedInfo}</div>` : ''}
         </div>
@@ -862,13 +1527,14 @@ class KanbanUI {
 
         document.getElementById('editCardTitleInput').value = card.title || '';
         document.getElementById('editCardDescriptionInput').value = card.description || '';
+        this.populateTagSelect('editCardTagInput', card.tagIds || (card.tagId ? [card.tagId] : []));
         this.editCardModal.classList.add('show');
         document.getElementById('editCardTitleInput').focus();
         document.getElementById('editCardTitleInput').select();
     }
 
     // ============ TODO RENDER ============
-    renderTodos() {
+    renderTodos(shouldFocusSelection = false) {
         const todos = this.data.getTodos();
         if (!todos || todos.length === 0) {
             this.todoListEl.innerHTML = `
@@ -881,7 +1547,9 @@ class KanbanUI {
         }
 
         const total = todos.length;
-        const completed = todos.filter(t => t.completed).length;
+        const completedTodos = todos.filter(t => t.completed);
+        const activeTodos = todos.filter(t => !t.completed);
+        const completed = completedTodos.length;
         const totalSubtasks = todos.reduce((sum, t) => sum + (t.subtodos || []).length, 0);
         const completedSubtasks = todos.reduce((sum, t) => sum + (t.subtodos || []).filter(s => s.completed).length, 0);
 
@@ -893,25 +1561,74 @@ class KanbanUI {
         </div>
         `;
 
-        todos.forEach(todo => {
+        html += `
+        <section class="todo-section">
+        <div class="todo-section-header">
+        <h3>Open <span class="todo-section-count">${activeTodos.length}</span></h3>
+        </div>
+        <div class="todo-items" data-section="active">
+        `;
+
+        if (activeTodos.length === 0) {
+            html += `<p class="todo-section-empty">No open todos.</p>`;
+        }
+
+        activeTodos.forEach(todo => {
             html += this.createTodoHTML(todo);
         });
 
+        html += `</div></section>`;
+
+        html += `
+        <section class="todo-section completed-section">
+        <div class="todo-section-header">
+        <button class="todo-section-toggle" id="toggleCompletedBtn" type="button" aria-expanded="${this.showCompletedTodos ? 'true' : 'false'}">
+        <span class="todo-section-title">Completed <span class="todo-section-count">${completedTodos.length}</span></span>
+        <span class="todo-section-toggle-icon">${this.showCompletedTodos ? this.icons.chevronUp : this.icons.chevronDown}</span>
+        </button>
+        <button class="todo-clear-completed" id="clearCompletedBtn" type="button" ${completedTodos.length === 0 ? 'disabled' : ''}>Clear all</button>
+        </div>
+        `;
+
+        if (this.showCompletedTodos) {
+            html += `<div class="todo-items" data-section="completed">`;
+            if (completedTodos.length === 0) {
+                html += `<p class="todo-section-empty">No completed todos yet.</p>`;
+            } else {
+                completedTodos.forEach(todo => {
+                    html += this.createTodoHTML(todo);
+                });
+            }
+            html += `</div>`;
+        }
+
+        html += `</section>`;
+
         this.todoListEl.innerHTML = html;
         this.setupTodoEventListeners();
+        this.ensureValidTodoSelection();
+        if (shouldFocusSelection) this.focusSelectedTodo();
+    }
+
+    focusSelectedTodo() {
+        const selected = this.todoListEl.querySelector('.todo-item.selected-todo');
+        if (selected) selected.focus();
     }
 
     createTodoHTML(todo) {
         const isCompleted = todo.completed;
         const subtodos = todo.subtodos || [];
         const hasSubtodos = subtodos.length > 0;
+        const dueDateText = this.formatDueDate(todo.dueDate);
+        const isTodoOverdue = this.isOverdue(todo.dueDate, isCompleted);
 
         let html = `
-        <div class="todo-item ${isCompleted ? 'completed' : ''}" data-todo-id="${todo.id}">
+        <div class="todo-item ${isCompleted ? 'completed' : ''}" draggable="true" data-todo-id="${todo.id}">
         <div class="todo-main">
         <input type="checkbox" class="todo-checkbox" ${isCompleted ? 'checked' : ''} />
         <div class="todo-content">
         <div class="todo-title">${this.escapeHtml(todo.title)}</div>
+        ${dueDateText ? `<div class="todo-due${isTodoOverdue ? ' overdue' : ''}">Due ${this.escapeHtml(dueDateText)}</div>` : ''}
         </div>
         <div class="todo-actions">
         <button class="todo-add-sub" title="Add subtask">${this.icons.add}</button>
@@ -924,10 +1641,17 @@ class KanbanUI {
         if (hasSubtodos) {
             html += `<div class="subtodos">`;
             subtodos.forEach(sub => {
+                const subDueDateText = this.formatDueDate(sub.dueDate);
+                const isSubtodoOverdue = this.isOverdue(sub.dueDate, sub.completed);
+                const isPendingUnderCompletedParent = isCompleted && !sub.completed;
                 html += `
-                <div class="subtodo-item ${sub.completed ? 'completed' : ''}" data-subtodo-id="${sub.id}">
+                <div class="subtodo-item ${sub.completed ? 'completed' : ''} ${isPendingUnderCompletedParent ? 'pending-parent-complete' : ''}" data-subtodo-id="${sub.id}">
                 <input type="checkbox" class="subtodo-checkbox" ${sub.completed ? 'checked' : ''} />
+                ${isPendingUnderCompletedParent ? `<span class="subtodo-parent-indicator" title="Parent todo is completed but this subtask is still open">${this.icons.close}</span>` : ''}
+                <div class="subtodo-content">
                 <span class="subtodo-title">${this.escapeHtml(sub.title)}</span>
+                ${subDueDateText ? `<div class="subtodo-due${isSubtodoOverdue ? ' overdue' : ''}">Due ${this.escapeHtml(subDueDateText)}</div>` : ''}
+                </div>
                 <div class="subtodo-actions">
                 <button class="subtodo-edit" title="Edit subtask">${this.icons.edit}</button>
                 <button class="subtodo-delete" title="Delete subtask">${this.icons.trash}</button>
@@ -943,6 +1667,23 @@ class KanbanUI {
     }
 
     setupTodoEventListeners() {
+        const completedToggle = document.getElementById('toggleCompletedBtn');
+        if (completedToggle) {
+            completedToggle.addEventListener('click', () => {
+                this.showCompletedTodos = !this.showCompletedTodos;
+                this.renderTodos();
+            });
+        }
+
+        const clearCompletedBtn = document.getElementById('clearCompletedBtn');
+        if (clearCompletedBtn) {
+            clearCompletedBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (!confirm('Clear all completed todos? This cannot be undone.')) return;
+                this.data.clearCompletedTodos();
+            });
+        }
+
         // Todo checkbox toggle
         document.querySelectorAll('.todo-checkbox').forEach(cb => {
             cb.addEventListener('change', (e) => {
@@ -969,10 +1710,12 @@ class KanbanUI {
                 e.stopPropagation();
                 const todoItem = e.target.closest('.todo-item');
                 const todoId = todoItem.dataset.todoId;
+                this.selectedTodoId = todoId;
                 const todo = this.data.getTodos().find(t => t.id === todoId);
                 if (todo) {
                     document.getElementById('subtodoParentTitle').textContent = todo.title;
                     this.addSubtodoModal.dataset.todoId = todoId;
+                    document.getElementById('subtodoDueDateInput').value = '';
                     this.addSubtodoModal.classList.add('show');
                     document.getElementById('subtodoTitleInput').focus();
                 }
@@ -989,6 +1732,7 @@ class KanbanUI {
                 if (todo) {
                     this.editingTodoId = todoId;
                     document.getElementById('editTodoTitleInput').value = todo.title;
+                    document.getElementById('editTodoDueDateInput').value = todo.dueDate || '';
                     this.editTodoModal.classList.add('show');
                     document.getElementById('editTodoTitleInput').focus();
                     document.getElementById('editTodoTitleInput').select();
@@ -1020,10 +1764,13 @@ class KanbanUI {
                 if (todo) {
                     const subtodo = todo.subtodos.find(s => s.id === subtodoId);
                     if (subtodo) {
-                        const newTitle = prompt('Edit subtask title:', subtodo.title);
-                        if (newTitle !== null && newTitle.trim()) {
-                            this.data.updateSubtodo(todoId, subtodoId, { title: newTitle.trim() });
-                        }
+                        this.editingSubtodoTodoId = todoId;
+                        this.editingSubtodoId = subtodoId;
+                        document.getElementById('editSubtodoTitleInput').value = subtodo.title;
+                        document.getElementById('editSubtodoDueDateInput').value = subtodo.dueDate || '';
+                        this.editSubtodoModal.classList.add('show');
+                        document.getElementById('editSubtodoTitleInput').focus();
+                        document.getElementById('editSubtodoTitleInput').select();
                     }
                 }
             });
@@ -1054,6 +1801,77 @@ class KanbanUI {
                 }
             });
         });
+
+        document.querySelectorAll('.todo-item').forEach(todoItem => {
+            todoItem.addEventListener('click', () => {
+                this.selectedTodoId = todoItem.dataset.todoId;
+                this.applyTodoSelection();
+            });
+        });
+
+        this.setupTodoDragDrop();
+    }
+
+    setupTodoDragDrop() {
+        let draggedItem = null;
+        let draggedSection = null;
+
+        document.querySelectorAll('.todo-item').forEach(item => {
+            item.addEventListener('dragstart', (e) => {
+                draggedItem = item;
+                draggedSection = item.closest('.todo-items')?.dataset.section || null;
+                item.classList.add('dragging');
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', item.dataset.todoId);
+            });
+
+            item.addEventListener('dragend', () => {
+                item.classList.remove('dragging');
+                document.querySelectorAll('.todo-items.drag-over').forEach(container => {
+                    container.classList.remove('drag-over');
+                });
+                draggedItem = null;
+                draggedSection = null;
+            });
+        });
+
+        document.querySelectorAll('.todo-items').forEach(container => {
+            container.addEventListener('dragover', (e) => {
+                const section = container.dataset.section;
+                if (!draggedItem || section !== draggedSection) return;
+                e.preventDefault();
+                container.classList.add('drag-over');
+
+                const insertBefore = this.getTodoDragInsertBefore(container, e.clientY);
+                if (!insertBefore) {
+                    container.appendChild(draggedItem);
+                } else {
+                    container.insertBefore(draggedItem, insertBefore);
+                }
+            });
+
+            container.addEventListener('dragleave', () => {
+                container.classList.remove('drag-over');
+            });
+
+            container.addEventListener('drop', (e) => {
+                const section = container.dataset.section;
+                if (!draggedItem || section !== draggedSection) return;
+                e.preventDefault();
+                container.classList.remove('drag-over');
+
+                const orderedIds = Array.from(container.querySelectorAll('.todo-item')).map(item => item.dataset.todoId);
+                this.data.reorderTodosBySection(section, orderedIds);
+            });
+        });
+    }
+
+    getTodoDragInsertBefore(container, yPosition) {
+        const items = Array.from(container.querySelectorAll('.todo-item:not(.dragging)'));
+        return items.find((item) => {
+            const rect = item.getBoundingClientRect();
+            return yPosition < rect.top + rect.height / 2;
+        }) || null;
     }
 
     // ============ DRAG AND DROP ============
@@ -1065,6 +1883,7 @@ class KanbanUI {
             card.addEventListener('dragstart', (e) => {
                 this.draggedCard = card.dataset.cardId;
                 this.draggedFromColumn = card.dataset.columnId;
+                this.draggedCardElement = card;
                 card.classList.add('dragging');
                 e.dataTransfer.effectAllowed = 'move';
                 e.dataTransfer.setData('text/plain', card.dataset.cardId);
@@ -1077,6 +1896,8 @@ class KanbanUI {
                 });
                 this.draggedCard = null;
                 this.draggedFromColumn = null;
+                this.draggedCardElement = null;
+                this.render();
             });
         });
 
@@ -1085,6 +1906,21 @@ class KanbanUI {
                 e.preventDefault();
                 e.dataTransfer.dropEffect = 'move';
                 container.classList.add('drag-over');
+
+                const draggedCard = this.draggedCardElement;
+                if (!draggedCard) return;
+
+                const targetCards = Array.from(container.querySelectorAll('.card:not(.dragging)'));
+                const insertBefore = targetCards.find(card => {
+                    const rect = card.getBoundingClientRect();
+                    return e.clientY < rect.top + rect.height / 2;
+                });
+
+                if (insertBefore) {
+                    container.insertBefore(draggedCard, insertBefore);
+                } else {
+                    container.appendChild(draggedCard);
+                }
             });
 
             container.addEventListener('dragleave', () => {
@@ -1099,66 +1935,59 @@ class KanbanUI {
                 const toColumnId = container.dataset.columnId;
 
                 if (!cardId || !toColumnId || !this.draggedFromColumn) return;
-                if (cardId === this.draggedCard && toColumnId === this.draggedFromColumn) return;
 
                 const boardId = board.id;
-                const success = this.data.moveCard(boardId, this.draggedFromColumn, toColumnId, cardId);
+                const destinationIndex = Array.from(container.querySelectorAll('.card'))
+                    .findIndex(card => card.dataset.cardId === cardId);
 
-                if (success) {
-                    const containerCards = container.querySelectorAll('.card');
-                    const cardElement = container.querySelector(`[data-card-id="${cardId}"]`);
-                    if (cardElement) {
-                        const mouseY = e.clientY;
-                        let insertBefore = null;
-                        for (const c of containerCards) {
-                            const rect = c.getBoundingClientRect();
-                            if (mouseY < rect.top + rect.height / 2) {
-                                insertBefore = c;
-                                break;
-                            }
-                        }
-                        if (insertBefore && insertBefore !== cardElement) {
-                            container.insertBefore(cardElement, insertBefore);
-                        } else if (!insertBefore) {
-                            container.appendChild(cardElement);
-                        }
+                this.data.moveCard(
+                    boardId,
+                    this.draggedFromColumn,
+                    toColumnId,
+                    cardId,
+                    destinationIndex
+                );
+            });
+        });
+    }
 
-                        const newOrder = Array.from(container.querySelectorAll('.card')).map(el => el.dataset.cardId);
-                        this.data.reorderCards(boardId, toColumnId, newOrder);
-                    }
-                }
+    setupColumnDragDrop(board) {
+        if (!this.boardEditMode) return;
+
+        const boardEl = this.boardContainerEl.querySelector('.board');
+        const columns = Array.from(boardEl.querySelectorAll('.column[data-column-id]'));
+
+        columns.forEach(column => {
+            const header = column.querySelector('.draggable-column-header');
+            header.addEventListener('dragstart', (event) => {
+                this.draggedColumn = column;
+                column.classList.add('dragging-column');
+                event.dataTransfer.effectAllowed = 'move';
+                event.dataTransfer.setData('text/plain', column.dataset.columnId);
+            });
+
+            header.addEventListener('dragend', () => {
+                column.classList.remove('dragging-column');
+                this.draggedColumn = null;
+                const columnIds = Array.from(boardEl.querySelectorAll('.column[data-column-id]'))
+                    .map(item => item.dataset.columnId);
+                this.data.reorderColumns(board.id, columnIds);
             });
         });
 
-        document.querySelectorAll('.column').forEach(col => {
-            col.addEventListener('dragover', (e) => {
-                e.preventDefault();
-                const container = col.querySelector('.cards-container');
-                if (container) {
-                    container.classList.add('drag-over');
-                }
+        boardEl.addEventListener('dragover', (event) => {
+            if (!this.draggedColumn) return;
+            event.preventDefault();
+            const targetColumns = Array.from(boardEl.querySelectorAll('.column[data-column-id]:not(.dragging-column)'));
+            const insertBefore = targetColumns.find(column => {
+                const rect = column.getBoundingClientRect();
+                return event.clientX < rect.left + rect.width / 2;
             });
-
-            col.addEventListener('dragleave', (e) => {
-                const container = col.querySelector('.cards-container');
-                if (container) {
-                    container.classList.remove('drag-over');
-                }
-            });
-
-            col.addEventListener('drop', (e) => {
-                e.preventDefault();
-                const container = col.querySelector('.cards-container');
-                if (container) {
-                    container.classList.remove('drag-over');
-                    const dropEvent = new DragEvent('drop', {
-                        clientX: e.clientX,
-                        clientY: e.clientY,
-                        dataTransfer: e.dataTransfer
-                    });
-                    container.dispatchEvent(dropEvent);
-                }
-            });
+            if (insertBefore) {
+                boardEl.insertBefore(this.draggedColumn, insertBefore);
+            } else {
+                boardEl.appendChild(this.draggedColumn);
+            }
         });
     }
 
@@ -1168,6 +1997,34 @@ class KanbanUI {
         return div.innerHTML;
     }
 
+    formatDueDate(dateValue) {
+        if (!dateValue) return '';
+        const parsed = new Date(`${dateValue}T00:00:00`);
+        if (Number.isNaN(parsed.getTime())) return dateValue;
+        return parsed.toLocaleDateString(undefined, {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric'
+        });
+    }
+
+    getTodayIsoDate() {
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    }
+
+    isOverdue(dateValue, isCompleted = false) {
+        if (!dateValue || isCompleted) return false;
+        const dueDate = new Date(`${dateValue}T00:00:00`);
+        if (Number.isNaN(dueDate.getTime())) return false;
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        return dueDate < today;
+    }
+
     icons = {
         // Edit / pencil
         edit: '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"/></svg>',
@@ -1175,6 +2032,10 @@ class KanbanUI {
         trash: '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>',
         // Add / plus
         add: '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>',
+        // Broom / clear all
+        broom: '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m4 20 15-15"/><path d="m14 3 7 7"/><path d="m3 21 5-1 2-2-3-3-2 2z"/></svg>',
+        // Eraser / clear all
+        eraser: '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m7 21-4-4a2 2 0 0 1 0-2.8l9.4-9.4a2 2 0 0 1 2.8 0l4 4a2 2 0 0 1 0 2.8L11 21z"/><path d="m5 12 7 7"/><path d="M16 21h5"/></svg>',
         // Close / x
         close: '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
         // Bar chart
@@ -1183,6 +2044,8 @@ class KanbanUI {
         check: '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
         // Clipboard / list
         clipboard: '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/><line x1="9" y1="11" x2="15" y2="11"/><line x1="9" y1="15" x2="13" y2="15"/></svg>',
+        chevronDown: '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>',
+        chevronUp: '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><polyline points="18 15 12 9 6 15"/></svg>',
         board: '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="18" rx="1"/><rect x="13" y="3" width="8" height="10" rx="1"/></svg>'
     };
 }
@@ -1309,6 +2172,8 @@ function ensureUI() {
 
 // On load: silently check for an existing session.
 (async () => {
+    registerServiceWorker();
+
     try {
         const res = await fetch('/api/me', { credentials: 'same-origin' });
         if (res.ok) {
@@ -1322,3 +2187,12 @@ function ensureUI() {
     }
     AuthController.show();
 })();
+
+function registerServiceWorker() {
+    if (!('serviceWorker' in navigator)) return;
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch(() => {
+            // Ignore registration failures; app still works without offline support.
+        });
+    });
+}

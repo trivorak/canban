@@ -176,19 +176,11 @@ body {
     transition: background 0.25s ease, color 0.25s ease;
 }
 
-/* Fade the wash back so content stays the focal point. */
-:root[data-theme='dark'] body {
-    background-image:
-        radial-gradient(1100px 520px at 8% -10%, var(--tint-teal) 0%, transparent 58%),
-        radial-gradient(950px 460px at 100% 0%, var(--tint-blue) 0%, transparent 55%),
-        radial-gradient(900px 620px at 50% 118%, var(--tint-red) 0%, transparent 58%);
-}
-
 .app {
     max-width: 1400px;
     margin: 0 auto;
     padding: 20px;
-    height: 100vh;
+    min-height: 100vh;
     display: flex;
     flex-direction: column;
 }
@@ -261,7 +253,7 @@ header h1 .icon {
 .btn {
     padding: 8px 16px;
     border: none;
-    border-radius: 6px;
+    border-radius: 4px;
     font-size: 14px;
     font-weight: 600;
     cursor: pointer;
@@ -367,7 +359,7 @@ header h1 .icon {
     flex: 1;
     display: flex;
     flex-direction: column;
-    overflow: hidden;
+    overflow: visible;
     padding-top: 16px;
 }
 
@@ -384,7 +376,7 @@ header h1 .icon {
     padding: 8px 20px;
     background: var(--surface-elevated);
     border: 2px solid var(--border);
-    border-radius: 20px;
+    border-radius: 6px;
     cursor: pointer;
     font-weight: 600;
     transition: all 0.2s;
@@ -423,19 +415,6 @@ header h1 .icon {
     color: var(--basis-red);
 }
 
-/* "Add board" chip (dashed) — teal so it reads as a secondary action */
-.board-tab.add-board {
-    border: 2px dashed var(--accent-teal);
-    color: var(--accent-teal);
-    background: transparent;
-}
-
-.board-tab.add-board:hover {
-    background: rgba(17, 112, 114, 0.1);
-    border-color: var(--accent-teal);
-    color: var(--accent-teal);
-}
-
 /* Board Container */
 .board-container {
     flex: 1;
@@ -446,7 +425,7 @@ header h1 .icon {
 .board {
     display: flex;
     gap: 20px;
-    height: 100%;
+    height: auto;
     min-height: 400px;
     padding-bottom: 20px;
     align-items: flex-start;
@@ -467,7 +446,6 @@ header h1 .icon {
     border-top: 4px solid var(--col-accent);
     display: flex;
     flex-direction: column;
-    max-height: calc(100vh - 280px);
     box-shadow: var(--shadow);
 }
 
@@ -478,6 +456,18 @@ header h1 .icon {
     margin-bottom: 12px;
     padding-bottom: 8px;
     border-bottom: 2px solid var(--col-tint);
+}
+
+.draggable-column-header {
+    cursor: grab;
+}
+
+.draggable-column-header:active {
+    cursor: grabbing;
+}
+
+.column.dragging-column {
+    opacity: 0.45;
 }
 
 .column-header h3 {
@@ -525,20 +515,6 @@ header h1 .icon {
     color: var(--col-accent);
 }
 
-/* Cards Container */
-.cards-container {
-    flex: 1;
-    min-height: 100px;
-    overflow-y: auto;
-    padding: 4px 0;
-}
-
-.cards-container.drag-over {
-    background: var(--drag-overlay);
-    border-radius: 8px;
-    border: 2px dashed var(--col-accent);
-}
-
 /* "Add Column" ghost column at the end of the board. */
 .column.add-column {
     display: flex;
@@ -561,10 +537,24 @@ header h1 .icon {
     background: var(--surface-hover);
 }
 
+/* Cards Container */
+.cards-container {
+    flex: 0 0 auto;
+    min-height: 100px;
+    overflow-y: visible;
+    padding: 4px 0;
+}
+
+.cards-container.drag-over {
+    background: var(--drag-overlay);
+    border-radius: 8px;
+    border: 2px dashed var(--hal-red);
+}
+
 /* Card */
 .card {
     background: var(--surface-elevated);
-    border-radius: 10px;
+    border-radius: 4px;
     padding: 14px;
     padding-top: 30px;
     margin-bottom: 10px;
@@ -581,6 +571,11 @@ header h1 .icon {
     transform: translateY(-2px);
     border-color: var(--col-accent);
     border-left-color: var(--col-accent);
+}
+
+.card.selected-card {
+    border-color: var(--accent-blue);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-blue) 35%, transparent), var(--shadow);
 }
 
 .card:active {
@@ -634,11 +629,100 @@ header h1 .icon {
     color: var(--text-strong);
 }
 
+.card.completed .card-title,
+.card.completed .card-description {
+    text-decoration: line-through;
+    color: var(--text-muted);
+}
+
+/* Completed cards keep a muted accent so "Done" reads as finished. */
+.card.completed {
+    border-left-color: var(--accent-green);
+}
+
 .card-description {
     font-size: 13px;
     color: var(--text-muted);
     margin-top: 4px;
     word-wrap: break-word;
+}
+
+.task-tag {
+    display: inline-flex;
+    align-items: center;
+    width: fit-content;
+    margin: 4px 0;
+    padding: 2px 7px;
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--tag-color) 18%, var(--surface-elevated));
+    color: var(--tag-color);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.tag-definition-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+
+.tag-definition,
+.tag-definition-form {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.tag-definition-form {
+    align-items: flex-end;
+}
+
+.tag-field {
+    display: grid;
+    gap: 4px;
+    color: var(--text-muted);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.tag-name-field {
+    flex: 1;
+}
+
+.tag-definition-form .tag-name-field input {
+    margin: 0;
+}
+
+.tag-definition-form .tag-color-field input[type="color"] {
+    appearance: none;
+    width: 42px;
+    height: 42px;
+    margin: 0;
+    padding: 3px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.tag-definition-form .tag-color-field input[type="color"]::-webkit-color-swatch-wrapper {
+    padding: 0;
+}
+
+.tag-definition-form .tag-color-field input[type="color"]::-webkit-color-swatch {
+    border: 0;
+    border-radius: 3px;
+}
+
+.delete-tag-btn {
+    border: none;
+    background: none;
+    color: var(--text-muted);
+    cursor: pointer;
+}
+
+.tag-empty {
+    color: var(--text-muted);
+    margin-bottom: 14px;
 }
 
 .card-meta {
@@ -654,8 +738,8 @@ header h1 .icon {
     flex: 1;
     display: flex;
     flex-direction: column;
-    height: 100%;
-    overflow: hidden;
+    height: auto;
+    overflow: visible;
     background: var(--surface-elevated);
     border: 1px solid var(--border);
     border-top: 4px solid var(--accent-teal);
@@ -689,8 +773,8 @@ header h1 .icon {
 }
 
 .todo-list {
-    flex: 1;
-    overflow-y: auto;
+    flex: 0 0 auto;
+    overflow-y: visible;
     padding-right: 8px;
 }
 
@@ -732,6 +816,108 @@ header h1 .icon {
     color: var(--text-strong);
 }
 
+.todo-section {
+    margin-top: 14px;
+}
+
+.todo-section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+    color: var(--text-strong);
+}
+
+.todo-section-header h3,
+.todo-section-title {
+    font-size: 15px;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.todo-section-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 24px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--tint-teal);
+    color: var(--accent-teal);
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.completed-section .todo-section-count {
+    background: var(--tint-green);
+    color: var(--accent-green);
+}
+
+.todo-section-toggle {
+    flex: 1;
+    border: 0;
+    background: none;
+    color: var(--text-strong);
+    padding: 0;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    text-align: left;
+}
+
+.completed-section .todo-section-header {
+    gap: 12px;
+}
+
+.completed-section .todo-section-toggle {
+    padding-right: 8px;
+}
+
+.todo-section-toggle:hover .todo-section-title {
+    color: var(--accent-teal);
+}
+
+.todo-section-toggle-icon {
+    color: var(--text-muted);
+}
+
+.todo-section-toggle-icon .icon {
+    width: 0.95em;
+    height: 0.95em;
+}
+
+.todo-section-empty {
+    color: var(--text-muted);
+    font-size: 14px;
+    margin-bottom: 12px;
+}
+
+.todo-clear-completed {
+    border: 1px solid var(--border);
+    background: var(--surface-elevated);
+    color: var(--text-muted);
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.todo-clear-completed:hover:not(:disabled) {
+    border-color: var(--hal-red);
+    color: var(--hal-red);
+    background: var(--tint-red);
+}
+
+.todo-clear-completed:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
 /* Todo Item */
 .todo-item {
     background: var(--surface-elevated);
@@ -741,6 +927,7 @@ header h1 .icon {
     padding: 12px 16px;
     margin-bottom: 10px;
     transition: all 0.2s;
+    cursor: grab;
     box-shadow: var(--shadow);
 }
 
@@ -748,6 +935,25 @@ header h1 .icon {
     border-color: var(--accent-teal);
     border-left-color: var(--accent-teal);
     box-shadow: 0 6px 18px rgba(42, 47, 48, 0.14);
+}
+
+.todo-item.selected-todo {
+    border-color: var(--accent-blue);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-blue) 30%, transparent);
+}
+
+.todo-item:active {
+    cursor: grabbing;
+}
+
+.todo-item.dragging {
+    opacity: 0.55;
+    transform: scale(0.99);
+}
+
+.todo-items.drag-over {
+    background: var(--drag-overlay);
+    border-radius: 8px;
 }
 
 .todo-item.completed {
@@ -790,6 +996,33 @@ header h1 .icon {
 
 .todo-title:hover {
     color: var(--accent-teal);
+}
+
+.todo-due,
+.subtodo-due {
+    margin-top: 4px;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.todo-item.completed .todo-due,
+.subtodo-item.completed .subtodo-due {
+    color: var(--text-faint);
+}
+
+.todo-due.overdue,
+.subtodo-due.overdue {
+    color: var(--hal-red);
+    font-weight: 700;
+}
+
+/* Overdue chip gets a tinted wash so it is scannable at a glance. */
+.todo-due.overdue,
+.subtodo-due.overdue {
+    background: var(--tint-red);
+    border-radius: 4px;
+    padding: 1px 6px;
+    width: fit-content;
 }
 
 .todo-actions {
@@ -852,6 +1085,38 @@ header h1 .icon {
     background: var(--surface-hover);
 }
 
+.subtodo-item.completed .subtodo-title {
+    text-decoration: line-through;
+    color: var(--text-faint);
+}
+
+.subtodo-item.pending-parent-complete {
+    border: 1px dashed var(--hal-red);
+    background: color-mix(in srgb, var(--hal-red) 8%, var(--surface-elevated));
+}
+
+.subtodo-item.pending-parent-complete .subtodo-title {
+    text-decoration: none;
+    color: var(--text-strong);
+}
+
+.subtodo-parent-indicator {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    margin-top: 2px;
+    color: var(--hal-red);
+    flex-shrink: 0;
+}
+
+.subtodo-parent-indicator .icon {
+    width: 0.85em;
+    height: 0.85em;
+    stroke-width: 2.4;
+}
+
 .subtodo-checkbox {
     margin-top: 2px;
     width: 16px;
@@ -861,11 +1126,43 @@ header h1 .icon {
     accent-color: var(--accent-teal);
 }
 
+.completed-section .todo-checkbox,
+.completed-section .subtodo-checkbox {
+    accent-color: var(--accent-green);
+    opacity: 0.85;
+}
+
 .subtodo-title {
-    flex: 1;
     font-size: 14px;
     color: var(--text-base);
     word-wrap: break-word;
+}
+
+.subtodo-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.due-date-field {
+    display: grid;
+    gap: 4px;
+    margin-bottom: 12px;
+    color: var(--text-muted);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.due-date-field input {
+    margin-bottom: 0;
+}
+
+.due-date-field input[type="date"] {
+    cursor: pointer;
+    color-scheme: light dark;
+}
+
+.due-date-field input[type="date"]::-webkit-calendar-picker-indicator {
+    cursor: pointer;
 }
 
 .subtodo-actions {
@@ -1033,11 +1330,12 @@ body:not(.authed) .app {
 }
 
 .modal-content input,
-.modal-content textarea {
+.modal-content textarea,
+.modal-content select {
     width: 100%;
     padding: 10px 14px;
     border: 2px solid var(--border);
-    border-radius: 8px;
+    border-radius: 4px;
     font-size: 14px;
     font-family: inherit;
     margin-bottom: 12px;
@@ -1047,10 +1345,10 @@ body:not(.authed) .app {
 }
 
 .modal-content input:focus,
-.modal-content textarea:focus {
+.modal-content textarea:focus,
+.modal-content select:focus {
     outline: none;
-    border-color: var(--accent-teal);
-    box-shadow: 0 0 0 3px rgba(17, 112, 114, 0.18);
+    border-color: var(--hal-red);
 }
 
 .modal-content input::placeholder,
@@ -1062,6 +1360,48 @@ body:not(.authed) .app {
     min-height: 100px;
     resize: vertical;
     font-family: inherit;
+}
+
+.card-tag-field {
+    display: grid;
+    gap: 4px;
+    margin-bottom: 12px;
+    color: var(--text-muted);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.card-tag-field select {
+    margin: 0;
+    cursor: pointer;
+}
+
+.selected-task-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    min-height: 0;
+    margin: -4px 0 12px;
+}
+
+.selected-task-tags .task-tag {
+    margin: 0;
+}
+
+.selected-task-tags .task-tag button {
+    display: inline-flex;
+    align-items: center;
+    border: 0;
+    background: none;
+    color: inherit;
+    cursor: pointer;
+    margin-left: 4px;
+    padding: 0;
+}
+
+.selected-task-tags .task-tag .icon {
+    width: 12px;
+    height: 12px;
 }
 
 .modal-actions {
@@ -1120,7 +1460,6 @@ body:not(.authed) .app {
 ::-webkit-scrollbar-thumb {
     background: var(--accent-teal);
     border-radius: 3px;
-    opacity: 0.6;
 }
 
 ::-webkit-scrollbar-thumb:hover {
@@ -1164,7 +1503,6 @@ body:not(.authed) .app {
         min-width: 220px;
         max-width: 260px;
         padding: 12px;
-        max-height: calc(100vh - 250px);
     }
 
     .board {
