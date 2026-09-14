@@ -727,10 +727,8 @@ class KanbanUI {
 
         if (boards.length > 0) {
             const addTab = document.createElement('div');
-            addTab.className = 'board-tab';
+            addTab.className = 'board-tab add-board';
             addTab.innerHTML = this.icons.add;
-            addTab.style.border = '2px dashed #4a6cf7';
-            addTab.style.color = '#4a6cf7';
             addTab.addEventListener('click', () => {
                 this.columnModal.classList.add('show');
                 document.getElementById('columnTitleInput').focus();
@@ -755,41 +753,17 @@ class KanbanUI {
         boardEl.className = 'board';
         boardEl.dataset.boardId = board.id;
 
-        board.columns.forEach(column => {
-            const colEl = this.createColumnElement(board, column);
+        board.columns.forEach((column, index) => {
+            const colEl = this.createColumnElement(board, column, index);
             boardEl.appendChild(colEl);
         });
 
         const addColBtn = document.createElement('div');
-        addColBtn.className = 'column';
-        addColBtn.style.cssText = `
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        gap: 6px;
-        min-width: 280px;
-        max-width: 320px;
-        background: transparent;
-        border: 2px dashed #d1d5db;
-        cursor: pointer;
-        transition: all 0.2s;
-        color: #6b7280;
-        font-weight: 600;
-        `;
+        addColBtn.className = 'column add-column';
         addColBtn.innerHTML = `${this.icons.add} Add Column`;
         addColBtn.addEventListener('click', () => {
             this.columnModal.classList.add('show');
             document.getElementById('columnTitleInput').focus();
-        });
-        addColBtn.addEventListener('mouseenter', () => {
-            addColBtn.style.borderColor = '#4a6cf7';
-            addColBtn.style.color = '#4a6cf7';
-            addColBtn.style.background = 'rgba(74, 108, 247, 0.05)';
-        });
-        addColBtn.addEventListener('mouseleave', () => {
-            addColBtn.style.borderColor = '#d1d5db';
-            addColBtn.style.color = '#6b7280';
-            addColBtn.style.background = 'transparent';
         });
 
         boardEl.appendChild(addColBtn);
@@ -797,15 +771,17 @@ class KanbanUI {
         this.setupDragDrop(board);
     }
 
-    createColumnElement(board, column) {
+    createColumnElement(board, column, index = 0) {
         const colEl = document.createElement('div');
         colEl.className = 'column';
         colEl.dataset.columnId = column.id;
         colEl.dataset.boardId = board.id;
+        // Cycle the Halliburton accent palette so columns are visually distinct.
+        colEl.dataset.accent = String(index % 6);
 
         colEl.innerHTML = `
         <div class="column-header">
-        <h3>${column.title} <span style="font-weight:400;color:#6b7280;font-size:13px;">(${column.cards.length})</span></h3>
+        <h3><span class="column-dot"></span>${column.title} <span class="card-count">(${column.cards.length})</span></h3>
         <div class="column-actions">
         <button class="add-card-btn" title="Add Card">${this.icons.add}</button>
         <button class="delete-column-btn" title="Delete Column">${this.icons.trash}</button>

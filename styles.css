@@ -1,7 +1,8 @@
 /* ============================================================
    Halliburton Kanban — brand-styled stylesheet
    Colors follow the Halliburton brand guidelines.
-   Primary: HAL RED #CC0000. Neutrals/greys from the palette.
+   Primary: HAL RED #CC0000, supported by the approved teal,
+   blue, amber, green and orange accents plus the panel tints.
    Light & dark themes are driven by a `data-theme` attribute
    on the <html> element.
    ============================================================ */
@@ -36,23 +37,74 @@
     --success: #119E49;
     --warning: #F7B500;
 
+    /* Secondary accents, pulled from the approved Halliburton palette.
+       These give the UI more life than the grey scale alone. */
+    --accent-teal: #117072;
+    --accent-blue: #335A89;
+    --accent-green: #119E49;
+    --accent-amber: #DDA32F;
+    --accent-orange: #CA5728;
+
+    /* Panel tints (used as tinted gradients, never as flat fills) */
+    --tint-red: #FBD7C5;
+    --tint-teal: #B2D8D8;
+    --tint-blue: #B7C9E3;
+    --tint-green: #AECE92;
+    --tint-amber: #FCE47E;
+
     /* Brand-on-white contrast text */
     --text-strong: #2A2F30;
     --text-base: #43494E;
     --text-muted: #6D757A;
     --text-faint: #A8AFB5;
 
-    /* Surfaces */
-    --surface-page: #F4F5F6;
+    /* Surfaces — tinted rather than pure grey so the page reads warmer */
+    --surface-page: #F2F4F6;
     --surface-elevated: #FFFFFF;
     --surface-column: #FFFFFF;
-    --surface-hover: #F4F5F6;
-    --border: #D4DADD;
+    --surface-hover: #E9EFF2;
+    --border: #C9D3D8;
     --border-strong: #A8AFB5;
-    --shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+    --shadow: 0 1px 2px rgba(42, 47, 48, 0.06), 0 4px 12px rgba(42, 47, 48, 0.08);
+
+    /* Per-column accent (set by the UI via data-accent, red by default) */
+    --col-accent: var(--hal-red);
+    --col-tint: var(--tint-red);
 
     --modal-overlay: rgba(42, 47, 48, 0.55);
-    --drag-overlay: rgba(204, 0, 0, 0.08);
+    --drag-overlay: rgba(204, 0, 0, 0.12);
+}
+
+/* Column accent palette — a repeating Halliburton cycle so a board of
+   columns reads as a colourful progression instead of a grey wall. */
+.column[data-accent='0'] {
+    --col-accent: var(--hal-red);
+    --col-tint: var(--tint-red);
+}
+
+.column[data-accent='1'] {
+    --col-accent: var(--accent-teal);
+    --col-tint: var(--tint-teal);
+}
+
+.column[data-accent='2'] {
+    --col-accent: var(--accent-blue);
+    --col-tint: var(--tint-blue);
+}
+
+.column[data-accent='3'] {
+    --col-accent: var(--accent-amber);
+    --col-tint: var(--tint-amber);
+}
+
+.column[data-accent='4'] {
+    --col-accent: var(--accent-green);
+    --col-tint: var(--tint-green);
+}
+
+.column[data-accent='5'] {
+    --col-accent: var(--accent-orange);
+    --col-tint: var(--tint-red);
 }
 
 /* Dark theme overrides */
@@ -68,21 +120,40 @@
     --neutral-800: #EFF1F2;
     --neutral-900: #FFFFFF;
 
+    /* Brand red needs lifting in dark mode — #CC0000 on a dark surface
+       is too heavy to read as an accent. */
+    --hal-red: #E8354A;
+    --basis-red: #C81E30;
+
+    /* Accents lightened to stay legible on dark surfaces */
+    --accent-teal: #4FA8A8;
+    --accent-blue: #809FCE;
+    --accent-green: #87B65D;
+    --accent-amber: #EFC04B;
+    --accent-orange: #E57751;
+
+    /* In dark mode the tints become deep, desaturated panel washes */
+    --tint-red: #45181B;
+    --tint-teal: #0F545A;
+    --tint-blue: #243B5E;
+    --tint-green: #304220;
+    --tint-amber: #4A3A12;
+
     --text-strong: #EFF1F2;
     --text-base: #D4DADD;
     --text-muted: #A8AFB5;
     --text-faint: #6D757A;
 
-    --surface-page: #141414;
-    --surface-elevated: #1E1E1E;
-    --surface-column: #26292a;
-    --surface-hover: #2A2F30;
-    --border: #43494E;
-    --border-strong: #A8AFB5;
-    --shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+    --surface-page: #141618;
+    --surface-elevated: #22262A;
+    --surface-column: #1E2225;
+    --surface-hover: #2E3439;
+    --border: #3A4247;
+    --border-strong: #5A646A;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 6px 18px rgba(0, 0, 0, 0.35);
 
-    --modal-overlay: rgba(0, 0, 0, 0.6);
-    --drag-overlay: rgba(204, 0, 0, 0.2);
+    --modal-overlay: rgba(0, 0, 0, 0.65);
+    --drag-overlay: rgba(232, 53, 74, 0.18);
 }
 
 * {
@@ -93,10 +164,24 @@
 
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+    /* Soft multi-hue wash instead of a flat grey page. */
     background: var(--surface-page);
+    background-image:
+        radial-gradient(1100px 520px at 8% -10%, var(--tint-teal) 0%, transparent 62%),
+        radial-gradient(950px 460px at 100% 0%, var(--tint-blue) 0%, transparent 58%),
+        radial-gradient(900px 620px at 50% 118%, var(--tint-red) 0%, transparent 60%);
+    background-attachment: fixed;
     color: var(--text-base);
     height: 100vh;
     transition: background 0.25s ease, color 0.25s ease;
+}
+
+/* Fade the wash back so content stays the focal point. */
+:root[data-theme='dark'] body {
+    background-image:
+        radial-gradient(1100px 520px at 8% -10%, var(--tint-teal) 0%, transparent 58%),
+        radial-gradient(950px 460px at 100% 0%, var(--tint-blue) 0%, transparent 55%),
+        radial-gradient(900px 620px at 50% 118%, var(--tint-red) 0%, transparent 58%);
 }
 
 .app {
@@ -143,7 +228,10 @@ header {
     justify-content: space-between;
     align-items: center;
     padding-bottom: 20px;
+    /* Rainbow rule: declared solid first so the border still shows in
+       engines that skip border-image on a single-edge border. */
     border-bottom: 3px solid var(--hal-red);
+    border-image: linear-gradient(90deg, var(--hal-red) 0%, var(--accent-orange) 32%, var(--accent-amber) 56%, var(--accent-teal) 80%, var(--accent-blue) 100%) 1;
     flex-wrap: wrap;
     gap: 10px;
 }
@@ -183,33 +271,36 @@ header h1 .icon {
 }
 
 .btn-primary {
-    background: var(--hal-red);
-    color: var(--hal-white);
+    background: linear-gradient(135deg, var(--hal-red) 0%, var(--active-red) 55%, var(--accent-orange) 100%);
+    color: #FFFFFF;
 }
 
 .btn-primary:hover {
-    background: var(--basis-red);
+    background: linear-gradient(135deg, var(--basis-red) 0%, var(--hal-red) 55%, var(--accent-orange) 100%);
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(204, 0, 0, 0.3);
+    box-shadow: 0 4px 16px rgba(204, 0, 0, 0.38);
 }
 
 .btn-secondary {
-    background: var(--surface-hover);
+    background: var(--surface-elevated);
     color: var(--text-base);
     border: 1px solid var(--border);
+    box-shadow: var(--shadow);
 }
 
 .btn-secondary:hover {
-    background: var(--border);
+    background: var(--surface-hover);
+    border-color: var(--accent-teal);
+    color: var(--accent-teal);
 }
 
 .btn-danger {
-    background: #ef4444;
+    background: linear-gradient(135deg, var(--active-red), var(--hal-red));
     color: white;
 }
 
 .btn-danger:hover {
-    background: #dc2626;
+    background: linear-gradient(135deg, var(--hal-red), var(--basis-red));
 }
 
 /* Theme toggle button */
@@ -236,7 +327,8 @@ header h1 .icon {
     display: flex;
     gap: 4px;
     padding: 10px 0 0 0;
-    border-bottom: 3px solid var(--border);
+    border-bottom: 3px solid var(--hal-red);
+    border-image: linear-gradient(90deg, var(--hal-red) 0%, var(--accent-orange) 32%, var(--accent-amber) 56%, var(--accent-teal) 80%, var(--accent-blue) 100%) 1;
     margin-bottom: 0;
 }
 
@@ -257,11 +349,17 @@ header h1 .icon {
 .main-tab:hover {
     color: var(--text-strong);
     background: var(--surface-hover);
+    border-radius: 6px 6px 0 0;
 }
 
 .main-tab.active {
     color: var(--hal-red);
     border-bottom-color: var(--hal-red);
+}
+
+.main-tab[data-tab='todo'].active {
+    color: var(--accent-teal);
+    border-bottom-color: var(--accent-teal);
 }
 
 /* Tab Content */
@@ -299,28 +397,43 @@ header h1 .icon {
 
 .board-tab:hover {
     background: var(--surface-hover);
-    border-color: var(--border-strong);
+    border-color: var(--accent-teal);
+    color: var(--accent-teal);
 }
 
 .board-tab.active {
-    background: var(--hal-red);
-    color: var(--hal-white);
+    background: linear-gradient(135deg, var(--hal-red), var(--active-red));
+    color: #FFFFFF;
     border-color: var(--hal-red);
+    box-shadow: 0 3px 12px rgba(204, 0, 0, 0.32);
 }
 
 .board-tab .delete-board {
     margin-left: 8px;
-    color: #ef4444;
+    color: var(--hal-red);
     cursor: pointer;
     font-size: 14px;
 }
 
 .board-tab.active .delete-board {
-    color: var(--hal-white);
+    color: #FFFFFF;
 }
 
 .board-tab .delete-board:hover {
-    color: #dc2626;
+    color: var(--basis-red);
+}
+
+/* "Add board" chip (dashed) — teal so it reads as a secondary action */
+.board-tab.add-board {
+    border: 2px dashed var(--accent-teal);
+    color: var(--accent-teal);
+    background: transparent;
+}
+
+.board-tab.add-board:hover {
+    background: rgba(17, 112, 114, 0.1);
+    border-color: var(--accent-teal);
+    color: var(--accent-teal);
 }
 
 /* Board Container */
@@ -339,18 +452,23 @@ header h1 .icon {
     align-items: flex-start;
 }
 
-/* Column */
+/* Column — each column carries its own accent color, applied as a
+   tinted wash along the top plus a colored header rule. */
 .column {
-    background: var(--surface-column);
-    border-radius: 12px;
+    background:
+        linear-gradient(180deg, var(--col-tint) 0%, transparent 120px),
+        var(--surface-column);
+    border-radius: 14px;
     padding: 16px;
     min-width: 280px;
     max-width: 320px;
     flex-shrink: 0;
-    border: 2px solid var(--border);
+    border: 1px solid var(--border);
+    border-top: 4px solid var(--col-accent);
     display: flex;
     flex-direction: column;
     max-height: calc(100vh - 280px);
+    box-shadow: var(--shadow);
 }
 
 .column-header {
@@ -359,13 +477,31 @@ header h1 .icon {
     align-items: center;
     margin-bottom: 12px;
     padding-bottom: 8px;
-    border-bottom: 2px solid var(--border);
+    border-bottom: 2px solid var(--col-tint);
 }
 
 .column-header h3 {
     font-size: 16px;
-    font-weight: 600;
+    font-weight: 700;
     color: var(--text-strong);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Small colored dot echoing the column accent. */
+.column-header h3 .column-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--col-accent);
+    flex-shrink: 0;
+}
+
+.column-header h3 .card-count {
+    font-weight: 500;
+    color: var(--col-accent);
+    font-size: 13px;
 }
 
 .column-header .column-actions {
@@ -379,13 +515,14 @@ header h1 .icon {
     cursor: pointer;
     font-size: 16px;
     padding: 4px;
-    border-radius: 4px;
-    transition: background 0.2s;
+    border-radius: 6px;
+    transition: all 0.2s;
     color: var(--text-muted);
 }
 
 .column-header .column-actions button:hover {
-    background: var(--border);
+    background: var(--col-tint);
+    color: var(--col-accent);
 }
 
 /* Cards Container */
@@ -399,27 +536,51 @@ header h1 .icon {
 .cards-container.drag-over {
     background: var(--drag-overlay);
     border-radius: 8px;
-    border: 2px dashed var(--hal-red);
+    border: 2px dashed var(--col-accent);
+}
+
+/* "Add Column" ghost column at the end of the board. */
+.column.add-column {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 6px;
+    background: transparent;
+    border: 2px dashed var(--accent-teal);
+    border-top: 2px dashed var(--accent-teal);
+    box-shadow: none;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: var(--accent-teal);
+    font-weight: 600;
+}
+
+.column.add-column:hover {
+    border-color: var(--accent-blue);
+    color: var(--accent-blue);
+    background: var(--surface-hover);
 }
 
 /* Card */
 .card {
     background: var(--surface-elevated);
-    border-radius: 8px;
+    border-radius: 10px;
     padding: 14px;
     padding-top: 30px;
     margin-bottom: 10px;
     box-shadow: var(--shadow);
-    border: 2px solid var(--border);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--col-accent);
     cursor: grab;
     transition: all 0.2s;
     position: relative;
 }
 
 .card:hover {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+    box-shadow: 0 6px 18px rgba(42, 47, 48, 0.16);
     transform: translateY(-2px);
-    border-color: var(--hal-red);
+    border-color: var(--col-accent);
+    border-left-color: var(--col-accent);
 }
 
 .card:active {
@@ -457,13 +618,13 @@ header h1 .icon {
 }
 
 .card-actions .card-edit:hover {
-    background: #dbeafe;
-    color: #2563eb;
+    background: var(--tint-blue);
+    color: var(--accent-blue);
 }
 
 .card-actions .card-delete:hover {
-    background: #fee2e2;
-    color: #ef4444;
+    background: var(--tint-red);
+    color: var(--hal-red);
 }
 
 .card-title {
@@ -495,6 +656,12 @@ header h1 .icon {
     flex-direction: column;
     height: 100%;
     overflow: hidden;
+    background: var(--surface-elevated);
+    border: 1px solid var(--border);
+    border-top: 4px solid var(--accent-teal);
+    border-radius: 14px;
+    padding: 20px;
+    box-shadow: var(--shadow);
 }
 
 .todo-header {
@@ -502,7 +669,7 @@ header h1 .icon {
     justify-content: space-between;
     align-items: center;
     padding-bottom: 16px;
-    border-bottom: 2px solid var(--border);
+    border-bottom: 2px solid var(--tint-teal);
     margin-bottom: 16px;
     flex-wrap: wrap;
     gap: 10px;
@@ -518,7 +685,7 @@ header h1 .icon {
 }
 
 .todo-header h2 .icon {
-    color: var(--hal-red);
+    color: var(--accent-teal);
 }
 
 .todo-list {
@@ -533,9 +700,11 @@ header h1 .icon {
     gap: 20px;
     font-size: 14px;
     color: var(--text-muted);
-    padding: 8px 0 16px 0;
+    padding: 10px 14px;
     flex-wrap: wrap;
-    border-bottom: 1px solid var(--border);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: linear-gradient(135deg, var(--tint-teal) 0%, transparent 70%);
     margin-bottom: 16px;
 }
 
@@ -545,24 +714,44 @@ header h1 .icon {
     gap: 2px;
 }
 
+/* Each stat gets its own accent so the row reads as a legend. */
+.todo-stats span:nth-child(1) .icon {
+    color: var(--accent-blue);
+}
+
+.todo-stats span:nth-child(2) .icon {
+    color: var(--accent-green);
+}
+
+.todo-stats span:nth-child(3) .icon {
+    color: var(--accent-amber);
+}
+
 .todo-stats .stat-number {
-    font-weight: 600;
+    font-weight: 700;
     color: var(--text-strong);
 }
 
 /* Todo Item */
 .todo-item {
     background: var(--surface-elevated);
-    border: 2px solid var(--border);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--accent-blue);
     border-radius: 10px;
     padding: 12px 16px;
     margin-bottom: 10px;
     transition: all 0.2s;
+    box-shadow: var(--shadow);
 }
 
 .todo-item:hover {
-    border-color: var(--hal-red);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    border-color: var(--accent-teal);
+    border-left-color: var(--accent-teal);
+    box-shadow: 0 6px 18px rgba(42, 47, 48, 0.14);
+}
+
+.todo-item.completed {
+    border-left-color: var(--accent-green);
 }
 
 .todo-item.completed > .todo-main > .todo-content > .todo-title {
@@ -582,7 +771,7 @@ header h1 .icon {
     height: 18px;
     cursor: pointer;
     flex-shrink: 0;
-    accent-color: var(--hal-red);
+    accent-color: var(--accent-teal);
 }
 
 .todo-content {
@@ -600,7 +789,7 @@ header h1 .icon {
 }
 
 .todo-title:hover {
-    color: var(--hal-red);
+    color: var(--accent-teal);
 }
 
 .todo-actions {
@@ -627,18 +816,18 @@ header h1 .icon {
 }
 
 .todo-actions .todo-add-sub:hover {
-    background: #dbeafe;
-    color: #2563eb;
+    background: var(--tint-green);
+    color: var(--accent-green);
 }
 
 .todo-actions .todo-edit:hover {
-    background: #dbeafe;
-    color: #2563eb;
+    background: var(--tint-blue);
+    color: var(--accent-blue);
 }
 
 .todo-actions .todo-delete:hover {
-    background: #fee2e2;
-    color: #ef4444;
+    background: var(--tint-red);
+    color: var(--hal-red);
 }
 
 /* Subtodos */
@@ -646,7 +835,7 @@ header h1 .icon {
     margin-left: 30px;
     margin-top: 10px;
     padding-left: 14px;
-    border-left: 2px solid var(--border);
+    border-left: 2px solid var(--tint-teal);
 }
 
 .subtodo-item {
@@ -663,18 +852,13 @@ header h1 .icon {
     background: var(--surface-hover);
 }
 
-.subtodo-item.completed > .subtodo-title {
-    text-decoration: line-through;
-    color: var(--text-faint);
-}
-
 .subtodo-checkbox {
     margin-top: 2px;
     width: 16px;
     height: 16px;
     cursor: pointer;
     flex-shrink: 0;
-    accent-color: var(--hal-red);
+    accent-color: var(--accent-teal);
 }
 
 .subtodo-title {
@@ -707,13 +891,13 @@ header h1 .icon {
 }
 
 .subtodo-actions .subtodo-edit:hover {
-    background: #dbeafe;
-    color: #2563eb;
+    background: var(--tint-blue);
+    color: var(--accent-blue);
 }
 
 .subtodo-actions .subtodo-delete:hover {
-    background: #fee2e2;
-    color: #ef4444;
+    background: var(--tint-red);
+    color: var(--hal-red);
 }
 
 /* Modal */
@@ -743,6 +927,10 @@ body:not(.authed) .app {
 /* Authentication overlay */
 .auth-modal {
     background: var(--surface-page);
+    background-image:
+        radial-gradient(900px 480px at 10% 0%, var(--tint-teal) 0%, transparent 60%),
+        radial-gradient(800px 420px at 95% 10%, var(--tint-blue) 0%, transparent 58%),
+        radial-gradient(900px 620px at 50% 110%, var(--tint-red) 0%, transparent 60%);
     backdrop-filter: none;
     z-index: 2000;
 }
@@ -750,6 +938,7 @@ body:not(.authed) .app {
 .auth-content {
     max-width: 380px;
     text-align: center;
+    border-top: 4px solid var(--hal-red);
 }
 
 .auth-title {
@@ -788,7 +977,7 @@ body:not(.authed) .app {
 .btn-link {
     background: none;
     border: none;
-    color: var(--hal-red);
+    color: var(--accent-teal);
     font-weight: 600;
     cursor: pointer;
     font-size: 14px;
@@ -811,6 +1000,8 @@ body:not(.authed) .app {
     border-radius: 16px;
     max-width: 400px;
     width: 90%;
+    border: 1px solid var(--border);
+    border-top: 4px solid var(--hal-red);
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
     color: var(--text-base);
 }
@@ -832,6 +1023,15 @@ body:not(.authed) .app {
     color: var(--text-muted);
 }
 
+.modal-hint {
+    margin-bottom: 12px;
+    color: var(--text-muted);
+}
+
+.modal-hint strong {
+    color: var(--accent-teal);
+}
+
 .modal-content input,
 .modal-content textarea {
     width: 100%;
@@ -849,7 +1049,8 @@ body:not(.authed) .app {
 .modal-content input:focus,
 .modal-content textarea:focus {
     outline: none;
-    border-color: var(--hal-red);
+    border-color: var(--accent-teal);
+    box-shadow: 0 0 0 3px rgba(17, 112, 114, 0.18);
 }
 
 .modal-content input::placeholder,
@@ -880,7 +1081,7 @@ body:not(.authed) .app {
 .empty-state .emoji {
     font-size: 48px;
     margin-bottom: 12px;
-    color: var(--hal-red);
+    color: var(--accent-teal);
 }
 
 .empty-state .emoji .icon {
@@ -897,7 +1098,7 @@ body:not(.authed) .app {
 .todo-empty .emoji {
     font-size: 48px;
     margin-bottom: 12px;
-    color: var(--hal-red);
+    color: var(--accent-amber);
 }
 
 .todo-empty .emoji .icon {
@@ -917,12 +1118,13 @@ body:not(.authed) .app {
 }
 
 ::-webkit-scrollbar-thumb {
-    background: var(--border-strong);
+    background: var(--accent-teal);
     border-radius: 3px;
+    opacity: 0.6;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: var(--text-faint);
+    background: var(--hal-red);
 }
 
 /* Responsive */
