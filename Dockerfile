@@ -1,11 +1,15 @@
 # ---- Build stage: install server deps ----
-FROM node:20-alpine AS build
+# Node 22 ships node:sqlite, so there is no native addon to compile and no
+# node-gyp. "npm install" here is fast and deterministic.
+FROM node:22-alpine AS build
 WORKDIR /app
+# The lockfile glob is intentionally optional so a fresh clone still builds;
+# commit server/package-lock.json to pin exact dependency versions.
 COPY server/package.json server/package-lock.json* ./
 RUN npm install
 
 # ---- Runtime stage ----
-FROM node:20-alpine
+FROM node:22-alpine
 WORKDIR /app
 
 ENV NODE_ENV=production

@@ -1,8 +1,8 @@
 'use strict';
 
-const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
+const { DatabaseSync } = require('node:sqlite');
 
 // DB file location — overridable so the container can point it at a mounted volume.
 const DB_PATH = process.env.CANBAN_DB_PATH || path.join(__dirname, 'data', 'canban.db');
@@ -10,9 +10,12 @@ const DB_PATH = process.env.CANBAN_DB_PATH || path.join(__dirname, 'data', 'canb
 // Make sure the directory exists.
 fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
 
-const db = new Database(DB_PATH);
-db.pragma('journal_mode = WAL');
-db.pragma('foreign_keys = ON');
+// Uses Node's built-in SQLite (node:sqlite, stable from Node 24 / available
+// from Node 22). This replaces better-sqlite3 so the image no longer needs to
+// download or compile a native addon at build time.
+const db = new DatabaseSync(DB_PATH);
+db.exec('PRAGMA journal_mode = WAL');
+db.exec('PRAGMA foreign_keys = ON');
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (

@@ -110,7 +110,9 @@ app.post('/api/logout', (req, res) => {
 app.get('/api/me', (req, res) => {
   const user = authenticate(req);
   if (!user) return res.status(401).json({ error: 'Not authenticated' });
-  return res.json({ user });
+  // node:sqlite returns rows with a null prototype, which JSON.stringify skips.
+  // Copy into a plain object so the response serializes correctly.
+  return res.json({ user: { id: user.id, username: user.username } });
 });
 
 // ---------------- Per-user state routes ----------------

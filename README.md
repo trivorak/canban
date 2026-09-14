@@ -9,8 +9,10 @@ and **per-user, SQLite-backed persistence**.
 - Halliburton brand color palette (light & dark themes)
 - SVG icons instead of emojis
 - **Per-user accounts**: everyone sees only their own boards/todos
-- **SQLite persistence** via a mounted volume — data survives restarts/rebuilds
+- SQLite persistence via a mounted volume — data survives restarts/rebuilds
 - Sessions via httpOnly cookies; passwords hashed with bcrypt
+- No native build step: uses Node's built-in `node:sqlite`, so image builds
+  are fast and don't compile anything
 
 ## Architecture
 
@@ -21,13 +23,13 @@ Browser ──HTTP──▶ Node/Express server (:8080)
                      └── /api/* endpoints
                             ├─ auth (register/login/logout/me)
                             └─ per-user state (get/save)
-                                 └── better-sqlite3 ──▶ /data/canban.db (volume)
+                                 └── node:sqlite ──▶ /data/canban.db (volume)
 ```
 
 ## Running locally (without a container)
 
-> **Note:** runs best on Node ≥ 20. On Node 26 `better-sqlite3` may need a
-> compatible version; the Podman image fixes this by pinning Node 20.
+> **Requires Node ≥ 22** — the server uses the built-in `node:sqlite` module.
+> There is no native dependency to compile anymore, so `npm install` is quick.
 
 ```bash
 cd server
@@ -42,7 +44,7 @@ Open http://localhost:8080, then **Sign Up** to create an account and start usin
 Build and run with a named volume so your data persists:
 
 ```bash
-# build (installs deps on Node 20 where better-sqlite3 compiles cleanly)
+# build (Node 22 base — no native addon compilation)
 podman build -t canban .
 
 # run with a persistent volume
@@ -66,6 +68,9 @@ Point your browser at http://localhost:8080.
 - The SQLite database is written to **`/data/canban.db`** (`CANBAN_DB_PATH`).
   Mount a **named volume** there for persistence across restarts and rebuilds.
 - Anonymous / unauthenticated requests to `/api/state` are rejected (401).
+- Node prints an `ExperimentalWarning: SQLite is an experimental feature`
+  line at startup. It is harmless; `node:sqlite` is stable in Node 24 and
+  onward. Suppress it with `NODE_OPTIONS=--no-warnings` if you prefer.
 - For production over **HTTPS**, set the env `COOKIE_SECURE=1` so session
   cookies are marked `Secure`:
   ```bash
