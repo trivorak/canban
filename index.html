@@ -194,10 +194,19 @@
                 <h2>Manage Task Tags</h2>
                 <div id="tagDefinitionList" class="tag-definition-list"></div>
                 <div class="tag-definition-form">
-                    <label class="tag-field tag-color-field" for="tagColorInput">
-                        <span>Color</span>
-                        <input type="color" id="tagColorInput" value="#CC0000" aria-label="Tag color" />
-                    </label>
+                    <div class="tag-field tag-color-field">
+                        <span id="tagColorLabel">Color</span>
+                        <!-- Shows the current preset; clicking opens the picker popup. -->
+                        <button
+                            type="button"
+                            id="tagColorTrigger"
+                            class="tag-color-trigger"
+                            title="Choose a color"
+                            aria-haspopup="true"
+                            aria-expanded="false"
+                            aria-labelledby="tagColorLabel"
+                        ></button>
+                    </div>
                     <label class="tag-field tag-name-field" for="tagNameInput">
                         <span>Meaning</span>
                         <input type="text" id="tagNameInput" placeholder="e.g. Needs review" />
@@ -209,6 +218,16 @@
                 </div>
             </div>
         </div>
+    </div>
+
+    <!-- Color preset popup, positioned by script.js next to #tagColorTrigger -->
+    <div class="tag-color-popup" id="tagColorPopup" role="dialog" aria-label="Choose a tag color" hidden>
+        <div
+            id="tagColorPicker"
+            class="tag-color-picker"
+            role="radiogroup"
+            aria-labelledby="tagColorLabel"
+        ></div>
     </div>
 
     <!-- Authentication overlay (shown until the user logs in) -->

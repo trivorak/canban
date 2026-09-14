@@ -1,4 +1,72 @@
 // ============================================================
+// SHARED CONSTANTS
+// ============================================================
+
+// 16 preset tag colors — an evenly spaced rainbow (22.5° per hue).
+// Each entry pairs a light-theme tone with a dark-theme tone so tag text
+// stays readable on either surface. Tags store only the hue `key`; the
+// actual color is resolved per theme via CSS custom properties, which
+// avoids a hardcoded hex that would be illegible in one of the themes.
+const TAG_COLORS = [
+    { key: 'red', label: 'Red' },
+    { key: 'red-orange', label: 'Red-orange' },
+    { key: 'orange', label: 'Orange' },
+    { key: 'amber', label: 'Amber' },
+    { key: 'yellow', label: 'Yellow' },
+    { key: 'lime', label: 'Lime' },
+    { key: 'green', label: 'Green' },
+    { key: 'emerald', label: 'Emerald' },
+    { key: 'teal', label: 'Teal' },
+    { key: 'cyan', label: 'Cyan' },
+    { key: 'sky', label: 'Sky' },
+    { key: 'blue', label: 'Blue' },
+    { key: 'indigo', label: 'Indigo' },
+    { key: 'violet', label: 'Violet' },
+    { key: 'purple', label: 'Purple' },
+    { key: 'magenta', label: 'Magenta' }
+];
+
+const TAG_COLOR_KEYS = TAG_COLORS.map(entry => entry.key);
+const DEFAULT_TAG_COLOR = 'red';
+
+// Tags created before the presets existed stored a hex value. Map those onto
+// the nearest preset so old boards keep working without a data migration.
+const LEGACY_TAG_COLORS = {
+    '#cc0000': 'red',
+    '#b92031': 'red',
+    '#d71f34': 'red',
+    '#45181b': 'red',
+    '#720f1a': 'red',
+    '#961b24': 'red',
+    '#f7b500': 'amber',
+    '#dda32f': 'amber',
+    '#efc04b': 'yellow',
+    '#fce47e': 'yellow',
+    '#119e49': 'green',
+    '#557a2d': 'lime',
+    '#87b65d': 'lime',
+    '#117072': 'teal',
+    '#0f545a': 'teal',
+    '#66b2b2': 'teal',
+    '#335a89': 'blue',
+    '#243b5e': 'indigo',
+    '#809fce': 'sky',
+    '#ca5728': 'orange',
+    '#e57751': 'orange',
+    '#f5a77e': 'orange',
+    '#4a6cf7': 'blue'
+};
+
+// Resolve whatever a tag has stored (preset key, legacy hex, or nothing)
+// into a valid preset key.
+function normalizeTagColor(value) {
+    if (!value) return DEFAULT_TAG_COLOR;
+    const key = String(value).trim().toLowerCase();
+    if (TAG_COLOR_KEYS.includes(key)) return key;
+    return LEGACY_TAG_COLORS[key] || DEFAULT_TAG_COLOR;
+}
+
+// ============================================================
 // DATA LAYER
 // ============================================================
 
@@ -149,7 +217,7 @@ class KanbanData {
         const board = this.data.boards.find(b => b.id === boardId);
         if (!board) return false;
         board.tags = board.tags || [];
-        board.tags.push({ id: 'tag-' + Date.now(), color, name });
+        board.tags.push({ id: 'tag-' + Date.now(), color: normalizeTagColor(color), name });
         this.save();
         return true;
     }
@@ -440,6 +508,8 @@ class KanbanUI {
         this.selectedKanbanColumnId = null;
         this.boardEditMode = false;
         this.showCompletedTodos = true;
+        // Currently chosen preset in the tag color picker.
+        this.selectedTagColor = DEFAULT_TAG_COLOR;
 
         // DOM refs
         this.boardTabsEl = document.getElementById('boardTabs');
@@ -561,21 +631,53 @@ class KanbanUI {
 
         this.manageTagsBtn.addEventListener('click', () => {
             this.renderTagDefinitions();
+            this.renderTagColorTrigger();
             this.manageTagsModal.classList.add('show');
         });
 
+        // Trigger opens/closes the preset popup.
+        document.getElementById('tagColorTrigger').addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (this.isTagColorPopupOpen()) {
+                this.closeTagColorPopup();
+            } else {
+                this.openTagColorPopup();
+            }
+        });
+
+        // Clicking anywhere else dismisses the popup.
+        document.addEventListener('click', (e) => {
+            if (!this.isTagColorPopupOpen()) return;
+            if (e.target.closest('#tagColorPopup') || e.target.closest('#tagColorTrigger')) return;
+            this.closeTagColorPopup();
+        });
+
+        // Keep the popup anchored to its trigger if the layout shifts.
+        const repositionPopup = () => {
+            if (this.isTagColorPopupOpen()) this.openTagColorPopup();
+        };
+        window.addEventListener('resize', repositionPopup);
+        window.addEventListener('scroll', repositionPopup, true);
+
         document.getElementById('addTagBtn').addEventListener('click', () => {
-            const color = document.getElementById('tagColorInput').value;
+            const color = normalizeTagColor(this.selectedTagColor);
             const nameInput = document.getElementById('tagNameInput');
             const name = nameInput.value.trim();
             const board = this.data.getCurrentBoard();
             if (!name || !board) return;
             this.data.addTag(board.id, color, name);
             nameInput.value = '';
+            // Advance to the next preset so consecutive tags don't look alike.
+            const nextIndex = (TAG_COLOR_KEYS.indexOf(color) + 1) % TAG_COLOR_KEYS.length;
+            this.selectedTagColor = TAG_COLOR_KEYS[nextIndex];
             this.renderTagDefinitions();
+            this.renderTagColorTrigger();
+            this.closeTagColorPopup();
+            nameInput.focus();
         });
 
         document.getElementById('closeTagsBtn').addEventListener('click', () => {
+            this.closeTagColorPopup();
             this.manageTagsModal.classList.remove('show');
         });
 
@@ -792,6 +894,11 @@ class KanbanUI {
         // Keyboard shortcuts
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
+                // Escape closes the color popup first, leaving the modal open.
+                if (this.isTagColorPopupOpen()) {
+                    this.closeTagColorPopup();
+                    return;
+                }
                 this.cancelAndCloseModals();
                 return;
             }
@@ -1234,6 +1341,7 @@ class KanbanUI {
     }
 
     cancelAndCloseModals() {
+        this.closeTagColorPopup();
         document.querySelectorAll('.modal.show').forEach(modal => modal.classList.remove('show'));
 
         this.editingCardId = null;
@@ -1303,7 +1411,7 @@ class KanbanUI {
         const tags = this.data.getCurrentBoard()?.tags || [];
         const selectedIds = this.getSelectedTagIds(selectId);
         selectedTagsEl.innerHTML = tags.filter(tag => selectedIds.includes(tag.id)).map(tag => `
-            <span class="task-tag" style="--tag-color:${tag.color}">
+            <span class="task-tag" data-tag-color="${normalizeTagColor(tag.color)}">
                 ${this.escapeHtml(tag.name)}
                 <button type="button" data-tag-id="${tag.id}" title="Remove ${this.escapeHtml(tag.name)}">${this.icons.close}</button>
             </span>
@@ -1325,7 +1433,7 @@ class KanbanUI {
         list.innerHTML = tags.length
             ? tags.map(tag => `
                 <div class="tag-definition">
-                    <span class="task-tag" style="--tag-color:${tag.color}">${this.escapeHtml(tag.name)}</span>
+                    <span class="task-tag" data-tag-color="${normalizeTagColor(tag.color)}">${this.escapeHtml(tag.name)}</span>
                     <button class="delete-tag-btn" data-tag-id="${tag.id}" title="Remove tag">${this.icons.close}</button>
                 </div>
             `).join('')
@@ -1336,6 +1444,81 @@ class KanbanUI {
                 this.renderTagDefinitions();
             });
         });
+    }
+
+    // Paint the compact trigger with the currently selected preset.
+    renderTagColorTrigger() {
+        const trigger = document.getElementById('tagColorTrigger');
+        const selected = normalizeTagColor(this.selectedTagColor);
+        trigger.dataset.tagColor = selected;
+        const entry = TAG_COLORS.find(item => item.key === selected);
+        trigger.title = `Color: ${entry ? entry.label : selected}`;
+    }
+
+    // Build the 16-swatch preset grid. `selectedColor` highlights the active
+    // choice; picking a swatch closes the popup.
+    renderTagColorPicker() {
+        const picker = document.getElementById('tagColorPicker');
+        const selected = normalizeTagColor(this.selectedTagColor);
+        picker.innerHTML = TAG_COLORS.map(entry => `
+            <button
+                type="button"
+                class="tag-color-swatch${entry.key === selected ? ' selected' : ''}"
+                data-tag-color="${entry.key}"
+                role="radio"
+                aria-checked="${entry.key === selected ? 'true' : 'false'}"
+                title="${entry.label}"
+                aria-label="${entry.label}"
+            ></button>
+        `).join('');
+        picker.querySelectorAll('.tag-color-swatch').forEach(swatch => {
+            swatch.addEventListener('click', () => {
+                this.selectedTagColor = swatch.dataset.tagColor;
+                this.renderTagColorTrigger();
+                this.closeTagColorPopup();
+                // Return focus to the trigger so keyboard flow is preserved.
+                document.getElementById('tagColorTrigger').focus();
+            });
+        });
+    }
+
+    // Popup geometry: prefer opening below the trigger, flip above when there
+    // isn't room, and clamp horizontally so it never leaves the viewport.
+    openTagColorPopup() {
+        const trigger = document.getElementById('tagColorTrigger');
+        const popup = document.getElementById('tagColorPopup');
+        this.renderTagColorPicker();
+        popup.hidden = false;
+
+        const margin = 8;
+        const triggerRect = trigger.getBoundingClientRect();
+        const popupRect = popup.getBoundingClientRect();
+
+        const spaceBelow = window.innerHeight - triggerRect.bottom;
+        const openUpward = spaceBelow < popupRect.height + margin && triggerRect.top > popupRect.height + margin;
+        let top = openUpward
+            ? triggerRect.top - popupRect.height - margin
+            : triggerRect.bottom + margin;
+        top = Math.max(margin, Math.min(top, window.innerHeight - popupRect.height - margin));
+
+        let left = triggerRect.left;
+        left = Math.max(margin, Math.min(left, window.innerWidth - popupRect.width - margin));
+
+        popup.style.top = `${Math.round(top)}px`;
+        popup.style.left = `${Math.round(left)}px`;
+        trigger.setAttribute('aria-expanded', 'true');
+    }
+
+    closeTagColorPopup() {
+        const popup = document.getElementById('tagColorPopup');
+        popup.hidden = true;
+        const trigger = document.getElementById('tagColorTrigger');
+        if (trigger) trigger.setAttribute('aria-expanded', 'false');
+    }
+
+    isTagColorPopupOpen() {
+        const popup = document.getElementById('tagColorPopup');
+        return popup ? !popup.hidden : false;
     }
 
     renderTabs(boards, currentBoard) {
@@ -1362,19 +1545,6 @@ class KanbanUI {
 
             this.boardTabsEl.appendChild(tab);
         });
-
-        // "New board" chip mirrors the old add-tab affordance.
-        const addTab = document.createElement('div');
-        addTab.className = 'board-tab add-board';
-        addTab.title = 'Add board';
-        addTab.innerHTML = this.icons.add;
-        addTab.addEventListener('click', () => {
-            const title = prompt('Enter board name:');
-            if (title !== null) {
-                this.data.addBoard(title || 'Untitled Board');
-            }
-        });
-        this.boardTabsEl.appendChild(addTab);
     }
 
     renderBoard(board) {
@@ -1508,7 +1678,7 @@ class KanbanUI {
         <button class="card-delete" data-card-id="${card.id}" title="Delete card">${this.icons.close}</button>
         </div>
         <div class="card-title">${this.escapeHtml(card.title)}</div>
-        ${taskTags.map(tag => `<span class="task-tag" style="--tag-color:${tag.color}">${this.escapeHtml(tag.name)}</span>`).join('')}
+        ${taskTags.map(tag => `<span class="task-tag" data-tag-color="${normalizeTagColor(tag.color)}">${this.escapeHtml(tag.name)}</span>`).join('')}
         ${hasDescription ? `<div class="card-description">${this.escapeHtml(card.description)}</div>` : ''}
         ${updatedInfo ? `<div class="card-meta">${updatedInfo}</div>` : ''}
         </div>

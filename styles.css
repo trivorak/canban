@@ -71,6 +71,26 @@
     --col-accent: var(--hal-red);
     --col-tint: var(--tint-red);
 
+    /* Tag color presets — 16 evenly spaced hues (22.5° apart). Each preset
+       has a light-tone and a dark-tone value; the dark theme overrides
+       them below so tag text stays legible on either surface. */
+    --tag-red: hsl(0 72% 40%);
+    --tag-red-orange: hsl(23 72% 40%);
+    --tag-orange: hsl(45 72% 36%);
+    --tag-amber: hsl(68 72% 32%);
+    --tag-yellow: hsl(90 72% 30%);
+    --tag-lime: hsl(113 72% 31%);
+    --tag-green: hsl(135 72% 32%);
+    --tag-emerald: hsl(158 72% 32%);
+    --tag-teal: hsl(180 72% 31%);
+    --tag-cyan: hsl(203 72% 36%);
+    --tag-sky: hsl(225 72% 43%);
+    --tag-blue: hsl(248 72% 47%);
+    --tag-indigo: hsl(270 72% 45%);
+    --tag-violet: hsl(293 72% 42%);
+    --tag-purple: hsl(315 72% 42%);
+    --tag-magenta: hsl(338 72% 44%);
+
     --modal-overlay: rgba(42, 47, 48, 0.55);
     --drag-overlay: rgba(204, 0, 0, 0.12);
 }
@@ -154,6 +174,24 @@
 
     --modal-overlay: rgba(0, 0, 0, 0.65);
     --drag-overlay: rgba(232, 53, 74, 0.18);
+
+    /* Tag presets, lifted for dark surfaces */
+    --tag-red: hsl(0 78% 70%);
+    --tag-red-orange: hsl(23 78% 70%);
+    --tag-orange: hsl(45 78% 68%);
+    --tag-amber: hsl(68 78% 66%);
+    --tag-yellow: hsl(90 78% 66%);
+    --tag-lime: hsl(113 78% 68%);
+    --tag-green: hsl(135 78% 68%);
+    --tag-emerald: hsl(158 78% 68%);
+    --tag-teal: hsl(180 78% 68%);
+    --tag-cyan: hsl(203 78% 70%);
+    --tag-sky: hsl(225 78% 74%);
+    --tag-blue: hsl(248 78% 75%);
+    --tag-indigo: hsl(270 78% 74%);
+    --tag-violet: hsl(293 78% 73%);
+    --tag-purple: hsl(315 78% 73%);
+    --tag-magenta: hsl(338 78% 73%);
 }
 
 * {
@@ -647,6 +685,72 @@ header h1 .icon {
     word-wrap: break-word;
 }
 
+/* Tag color presets: the swatch and any rendered tag both read the resolved
+   color from --tag-color, which is looked up per preset key. */
+[data-tag-color='red'] {
+    --tag-color: var(--tag-red);
+}
+
+[data-tag-color='red-orange'] {
+    --tag-color: var(--tag-red-orange);
+}
+
+[data-tag-color='orange'] {
+    --tag-color: var(--tag-orange);
+}
+
+[data-tag-color='amber'] {
+    --tag-color: var(--tag-amber);
+}
+
+[data-tag-color='yellow'] {
+    --tag-color: var(--tag-yellow);
+}
+
+[data-tag-color='lime'] {
+    --tag-color: var(--tag-lime);
+}
+
+[data-tag-color='green'] {
+    --tag-color: var(--tag-green);
+}
+
+[data-tag-color='emerald'] {
+    --tag-color: var(--tag-emerald);
+}
+
+[data-tag-color='teal'] {
+    --tag-color: var(--tag-teal);
+}
+
+[data-tag-color='cyan'] {
+    --tag-color: var(--tag-cyan);
+}
+
+[data-tag-color='sky'] {
+    --tag-color: var(--tag-sky);
+}
+
+[data-tag-color='blue'] {
+    --tag-color: var(--tag-blue);
+}
+
+[data-tag-color='indigo'] {
+    --tag-color: var(--tag-indigo);
+}
+
+[data-tag-color='violet'] {
+    --tag-color: var(--tag-violet);
+}
+
+[data-tag-color='purple'] {
+    --tag-color: var(--tag-purple);
+}
+
+[data-tag-color='magenta'] {
+    --tag-color: var(--tag-magenta);
+}
+
 .task-tag {
     display: inline-flex;
     align-items: center;
@@ -694,23 +798,79 @@ header h1 .icon {
     margin: 0;
 }
 
-.tag-definition-form .tag-color-field input[type="color"] {
-    appearance: none;
-    width: 42px;
-    height: 42px;
-    margin: 0;
-    padding: 3px;
-    border-radius: 6px;
-    cursor: pointer;
-}
-
-.tag-definition-form .tag-color-field input[type="color"]::-webkit-color-swatch-wrapper {
+/* Compact color trigger — shows the current preset. Clicking opens the popup. */
+.tag-color-trigger {
+    width: 32px;
+    height: 32px;
     padding: 0;
+    border: 2px solid var(--border);
+    border-radius: 8px;
+    cursor: pointer;
+    background: var(--tag-color);
+    transition: transform 0.15s ease, border-color 0.15s ease;
 }
 
-.tag-definition-form .tag-color-field input[type="color"]::-webkit-color-swatch {
-    border: 0;
-    border-radius: 3px;
+.tag-color-trigger:hover {
+    transform: scale(1.06);
+    border-color: var(--text-muted);
+}
+
+.tag-color-trigger:focus-visible {
+    outline: 2px solid var(--accent-teal);
+    outline-offset: 2px;
+}
+
+.tag-color-trigger[aria-expanded='true'] {
+    border-color: var(--text-strong);
+    box-shadow: 0 0 0 2px var(--surface-elevated) inset, 0 0 0 1px var(--text-strong);
+}
+
+/* Floating 4x4 preset grid. Sits above the tags modal (z-index 1000) and is
+   positioned next to the trigger by script.js. */
+.tag-color-popup {
+    position: fixed;
+    z-index: 1100;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface-elevated);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
+}
+
+.tag-color-popup[hidden] {
+    display: none;
+}
+
+/* 4 columns x 4 rows — roomy enough to tap comfortably. */
+.tag-color-picker {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+}
+
+.tag-color-swatch {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: 2px solid transparent;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    background: var(--tag-color);
+}
+
+.tag-color-swatch:hover {
+    transform: scale(1.12);
+}
+
+.tag-color-swatch.selected {
+    border-color: var(--text-strong);
+    box-shadow: 0 0 0 2px var(--surface-elevated) inset, 0 0 0 1px var(--text-strong);
+}
+
+.tag-color-swatch:focus-visible {
+    outline: 2px solid var(--accent-teal);
+    outline-offset: 1px;
 }
 
 .delete-tag-btn {
